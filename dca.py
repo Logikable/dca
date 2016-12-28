@@ -192,12 +192,15 @@ def num_hits(result):
     return result['hits']['total']
 
 def get_data(result, field=''):
-    if field: # if field contains something
-        return get_data(result)[field]
-    return result['hits']['hits'][0]['_source']
+    data = []
+    for i in range(result['hits']['total']):
+        if field:
+            data.append(result['hits']['hits'][i]['_source'][field])
+        else:
+            data.append(result['hits']['hits'][i]['_source'])
+    return data
 
 def es_query(func, doc_type, body):
-    print(body)
     return func(index="dca", doc_type=doc_type, body=body)
 
 def es_index(doc_type, body):
@@ -206,8 +209,9 @@ def es_index(doc_type, body):
 def es_count(doc_type, body):
     return es_query(es.count, doc_type, '{"query": {"match": {' + body + '}}}')
 
-def es_search(doc_type, body):
-    return es_query(es.search, doc_type, '{"query": {"match": {' + body + '}}}')
+def es_search(doc_type, body, filter=''):
+    return es_query(es.search, doc_type, '{"query": {"match": {' + body + '}}'
+            + (', "_source": ' + filter if filter else '') + '}') # checks if filter contains something
 
 def es_delete(doc_type, body):
     return es_query(es.delete_by_query, doc_type, '{"query": {"match": {' + body + '}}}')
@@ -224,13 +228,10 @@ def es_update(doc_type, body, script, fields, values):
             params += ', '
         field, value = fields[i], values[i]
         params += '"' + field + '": '
-        if isinstance(value, (list, tuple)):
-            result = es_search(doc_type, body)
-            data = get_data(result, field)
-            data.extend(value)
-            params += str(data).replace("'", '"')
+        if isinstance(value, list):
+            params += str(value).replace("'", '"')
         elif isint(value) or isfloat(value):
-            params += '' + str(value) + ''
+            params += str(value)
         else:
             params += '"' + value + '"'
     return es_query(es.update_by_query, doc_type, '{"query": {"match": {' + body + '}}, "script": {"inline": "'
@@ -257,11 +258,32 @@ def existing_tenant(args):
         return status_msg(False, 'tenant already exists')   
     return 0
 
+def existing_project(args):
+    # checks if project already exists
+    existing_projects = es_count('project', '"project": "' + args.project + '"')
+    if num_hits(existing_projects) != 0:
+        return status_msg(False, 'project already exists')
+    return 0
+
 def invalid_tenant(args):
     # checks if tenant doesn't exist
     existing_tenants = es_count('tenant', '"name": "' + args.tenant + '"')
     if num_hits(existing_tenants) == 0:
         return status_msg(False, 'tenant not found')
+    return 0
+
+def invalid_project(args):
+    # checks if project doesn't exist
+    existing_projects = es_count('project', '"project": "' + args.project + '"')
+    if num_hits(existing_projects) == 0:
+        return status_msg(False, 'project not found')
+    return 0
+
+def tenant_no_project(args):
+    # checks if the tenant is part of the project
+    matching_projects = es_count('tenant', '"name": "' + args.tenant + '", "projects": "' + args.project + '"')
+    if num_hits(matchin_projects) == 0:
+        return status_msg(False, 'tenant does not have this project')
     return 0
 
 def invalid_credit(args):
@@ -296,13 +318,18 @@ def invalid_expiry(args):
 def invalid_percent(args):
     if not ispercent(args.budget_percent):
         return status_msg(False, 'invalid percentage')
-    percent = float(args.budget_percent)
-    if percent == 0:
+    if float(args.budget_percent) == 0:
         return status_msg(False, 'percent cannot be 0')
-    percent_used = get_data(es_search('tenant', '"name": "' + args.tenant + '"'), 'percent_used')
-    if percent + percent_used > 100:
+    return 0
+
+def invalid_budget_percent(args):
+    percent_used = get_data(es_search('tenant', '"name": "' + args.tenant + '"', '"percent_used"'))
+    if float(args.budget_percent) + percent_used > 100:
         return status_msg(False, 'invalid percentage: total above 100')
     return 0
+
+def invalid_budget_percents(args):
+    
 
 def invalid_rate(args):
     # checks if default rate exists
@@ -334,8 +361,8 @@ def main():
         if subaction == 'add':
             if invalid_tenant_name(args) or existing_tenant(args) or invalid_credit(args) or invalid_rate(args):
                 return 1
-            es_index('tenant', '"name": "' + args.tenant + '", "rate_name": "' + args.rate + '", "credit": "'
-                    + str(args.credit) + '", "balance": 0, "percent_used": 0, "expiry": "' + tostrdate(datenever)
+            es_index('tenant', '"name": "' + args.tenant + '", "rate_name": "' + args.rate + '", "credit": '
+                    + str(args.credit) + ', "balance": 0, "percent_used": 0, "expiry": "' + tostrdate(datenever)
                     + '", "projects": [], "payments": []')
             return status_msg()
 
@@ -373,24 +400,45 @@ def main():
                 return 1
             date, curtime = todate(args.expiry), str(now())
             es_update('tenant', '"name": "' + args.tenant + '"', 'ctx._source.balance+=params.payment;'
-                    + 'ctx._source.expiry=params.expiry;ctx._source.payments=params.payments',
-                    ['payment', 'expiry', 'payments'], [str(args.payment), tostrdate(date), [curtime]])
+                    + 'ctx._source.expiry=params.expiry;ctx._source.payments.add(params.payments)',
+                    ['payment', 'expiry', 'payments'], [str(args.payment), tostrdate(date), curtime])
             es_index('payment', '"tenant": "' + args.tenant + '", "date": "' + curtime + '", "payment": "'
                     + str(args.payment) + '"')
             return status_msg()
 
     elif action == 'project':
         if subaction == 'add':
-            if invalid_tenant(args) or invalid_project_name(args) or invalid_percent(args):
+            if (invalid_tenant(args) or invalid_project_name(args) or existing_project(args) or
+                    invalid_percent(args) or invalid_budget_percent(args)):
                 return 1
-            es_update('tenant', '{"name": "' + args.tenant + '"}', '"ctx._source.percent_used+='
-                    + str(args.budget_percent) + '"' + 'ctx._source.projects+={}')
+            es_update('tenant', '"name": "' + args.tenant + '"', 'ctx._source.percent_used+=params.budget_percent;'
+                    + 'ctx._source.projects.add(params.projects)', ['budget_percent', 'projects'],
+                    [str(args.budget_percent), args.project])
+            es_index('project', '"tenant": "' + args.tenant + '", "project": "' + args.project + '", '
+                    + '"budget_percent": "' + str(args.budget_percent) + '", "users": []')
             return status_msg()
 
         elif subaction == 'delete':
+            if invalid_project(args):
+                return 1
+            if args.tenant: # if tenant has been specified
+                if invalid_tenant(args) or tenant_no_project(args):
+                    return 1                
+            es_delete('project', '"project": "' + args.project + '"')
+            es_update('tenant', '"projects": "' + args.project + '"'
+                    + (', "name": "' + args.tenant + '"' if args.tenant else ''),
+                    'ctx._source.projects.remove(ctx._source.projects.indexOf(params.project))',
+                    ['project'], [args.project])
             return status_msg()
         
         elif subaction == 'modify':
+            if invalid_project(args) or invalid_percent(args):
+                return 1
+            if args.tenant: # if tenant has been specified
+                if invalid_tenant(args) or tenant_no_project(args) or invalid_budget_percent(args):
+                    return 1
+            elif invalid_budget_percents(args):
+                return 1
             return status_msg()
 
 if __name__ == '__main__':
