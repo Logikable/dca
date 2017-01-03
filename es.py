@@ -13,7 +13,7 @@ def es_query(func, doc_type, body):
     if index:
         new_body = new_body + '}}'
     print(body)
-    return func(index="dca", doc_type=doc_type, body=new_body)
+    return func(index="dca", doc_type=doc_type, body=new_body) 
 
 def clr():
     es.indices.delete("dca")
