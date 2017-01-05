@@ -14,76 +14,61 @@ def getargs():
     parser = argparse.ArgumentParser()
     subparsers = parser.add_subparsers()
 
-
     tenant_parser = subparsers.add_parser('tenant')
     tenant_subparsers = tenant_parser.add_subparsers()
-
     add_tenant_parser = tenant_subparsers.add_parser('add')
     add_tenant_parser.add_argument('--tenant', required=True)
-    add_tenant_parser.add_argument('--credit', type=float, default=0)
-
+    add_tenant_parser.add_argument('--credit', type=float, default=0.0)
     delete_tenant_parser = tenant_subparsers.add_parser('delete')
     delete_tenant_parser.add_argument('--tenant', required=True)
-
     modify_tenant_parser = tenant_subparsers.add_parser('modify')
     modify_tenant_parser.add_argument('--tenant', required=True)
     modify_tenant_parser.add_argument('--credit', type=float, required=True)
-
     payment_tenant_parser = tenant_subparsers.add_parser('payment')
     payment_tenant_parser.add_argument('--tenant', required=True)
     payment_tenant_parser.add_argument('--payment', type=float, required=True)
 
-
     project_parser = subparsers.add_parser('project')
     project_subparsers = project_parser.add_subparsers()
-
     add_project_parser = project_subparsers.add_parser('add')
     add_project_parser.add_argument('--tenant', required=True)
     add_project_parser.add_argument('--project', required=True)
-    add_project_parser.add_argument('--budget', type=float, required=True)
-
+    add_project_parser.add_argument('--balance', type=float, default=0.0)
+    add_project_parser.add_argument('--credit', type=float, default=0.0)
     delete_project_parser = project_subparsers.add_parser('delete')
     delete_project_parser.add_argument('--project', required=True)
-
-    modify_project_parser = project_subparsers.add_parser('modify')
-    modify_project_parser.add_argument('--project', required=True)
-    modify_project_parser.add_argument('--budget', type=float, required=True)
-
+    movebudget_project_parser = project_subparsers.add_parser('movebudget')
+    movebudget_project_parser.add_argument('--from', dest='_from', required=True) # from is a keyword
+    movebudget_project_parser.add_argument('--to', required=True)
+    movebudget_project_parser.add_argument('--balance', type=float, default=0.0)
+    movebudget_project_parser.add_argument('--credit', type=float, default=0.0)
+    movebudget_project_parser.add_argument('--type', required=True, choices=['p2p', 't2p', 'p2t'])
 
     user_parser = subparsers.add_parser('user')
     user_subparsers = user_parser.add_subparsers()
-
     add_user_parser = user_subparsers.add_parser('add')
     add_user_parser.add_argument('--project', required=True)
     add_user_parser.add_argument('--user', required=True)
-
     delete_user_parser = user_subparsers.add_parser('delete')
     delete_user_parser.add_argument('--project', required=True)
     delete_user_parser.add_argument('--user', required=True)
-
 
     list_parser = subparsers.add_parser('list')
     list_parser.add_argument('--tenant')
     list_parser.add_argument('--project')
     list_parser.add_argument('--user')
 
-
     rate_parser = subparsers.add_parser('rate')
     rate_subparsers = rate_parser.add_subparsers()
-
     set_rate_parser = rate_subparsers.add_parser('set')
     set_rate_parser.add_argument('--rate', type=float, required=True)
-
     get_rate_parser = rate_subparsers.add_parser('get')
-
 
     transaction_parser = subparsers.add_parser('transaction')
     transaction_subparsers = transaction_parser.add_subparsers()
-
     reservebudget_transaction_parser = transaction_subparsers.add_parser('reservebudget')
     reservebudget_transaction_parser.add_argument('--project', required=True)
     reservebudget_transaction_parser.add_argument('--estimate', type=int, required=True)
-
     charge_transaction_parser = transaction_subparsers.add_parser('charge')
     charge_transaction_parser.add_argument('--project', required=True)
     charge_transaction_parser.add_argument('--user', required=True)
@@ -91,10 +76,8 @@ def getargs():
     charge_transaction_parser.add_argument('--jobtime', type=int, required=True)
     charge_transaction_parser.add_argument('--start', required=True)
    
-
     bill_parser = subparsers.add_parser('bill')
     bill_subparsers = bill_parser.add_subparsers()
-
     generate_bill_parser = bill_subparsers.add_parser('generate')
     generate_bill_parser.add_argument('--project', required=True)
     generate_bill_parser.add_argument('--time_period', required=True)
@@ -246,12 +229,6 @@ def invalid_tenant(args):
         return status_msg(False, 'tenant not found')
     return 0
 
-def invalid_project(args):
-    # checks if project doesn't exist
-    if num_hits(es_count('project', '"project": "' + args.project + '"')) == 0:
-        return status_msg(False, 'project not found')
-    return 0
-
 def invalid_credit(args):
     # checks if credit is an invalid value
     if not ismoney(args.credit):
@@ -260,8 +237,21 @@ def invalid_credit(args):
 
 def invalid_budget(args):
     # checks if budget is an invalid value
-    if not ismoney(args.budget) or args.budget <= 0:
+    if not ismoney(args.balance) or not ismoney(args.credit) or args.balance < 0 or args.credit < 0:
         return status_msg(False, 'invalid budget')
+    return 0
+
+def insufficient_bal_credit(proj, args, tenant_data, projects_data):
+    total_bal, total_credit = args.balance, args.credit
+    for project in projects_data:
+        if cic(project['project'], proj, False):
+            pass
+        total_bal += project['balance']
+        total_credit += project['credit']
+    if total_bal > tenant_data['balance']:
+        return status_msg(False, 'insufficient balance in tenant')
+    if total_credit > tenant_data['credit']:
+        return status_msg(False, 'insufficient credit in tenant')
     return 0
 
 # an argumentless function call indicates no error
@@ -333,7 +323,7 @@ def main():
             if invalid_credit(args):
                 return 1
             es_index('tenant', '"name": "' + args.tenant + '", "balance": 0.0, "credit": ' + str(args.credit)
-                    + ', "total_allocated": 0.0, "projects": []')
+                    + ', "projects": []')
             return status_msg()
 
         elif subaction == 'delete': # 1 count tenant, 1 delete tenant
@@ -365,7 +355,8 @@ def main():
             return status_msg()
 
     elif action == 'project':
-        if subaction == 'add': # 1 search tenant, 1 count project, 1 search rate, 1 update tenant, 1 index project
+        if subaction == 'add': # 1 search tenant, 1 count project, 1 search project, 1 search rate,
+                                # 1 update tenant, 1 index project
             res = es_search('tenant', '"name": "' + args.tenant + '"')
             if num_hits(res) == 0:
                 return status_msg(False, 'tenant does not exist')
@@ -376,26 +367,20 @@ def main():
             if invalid_budget(args):
                 return 1
 
-            data = get_data(res)[0]
-            bal = data['balance'] + data['credit']
-            if bal < data['total_allocated'] + args.budget:
-                return status_msg(False, 'insufficient budget: overallocation by '
-                        + str(data['total_allocated'] + args.budget - bal))
+            tenant_data = get_data(res)[0]
+            projects_data = get_data(es_search('project', '"tenant": "' + args.tenant +'"'))
+            if insufficient_bal_credit(args.project, args, tenant_data, projects_data):
+                return 1
 
-            project_bal = data['balance']/bal * args.budget
-            project_credit = data['credit']/bal * args.budget
             rate = get_data(es_search('rate', ''), 'rate')[0]       # hardcoded way of getting the rate
-
-            es_update('tenant', '"name": "' + args.tenant + '"', 'ctx._source.projects.add(params.project);'
-                    + 'ctx._source.total_allocated += params.alloc', ['project', 'alloc'],
-                    [args.project, args.budget])
+            es_update('tenant', '"name": "' + args.tenant + '"', 'ctx._source.projects.add(params.project)',
+                    ['project'], [args.project])
             es_index('project', '"tenant": "' + args.tenant + '", "project": "' + args.project + '", '
-                    + '"budget": ' + str(project_bal + project_credit) + ', "balance": '
-                    + str(project_bal) + ', "credit": ' + str(project_credit) + ', '
+                    +'"balance": ' + str(args.balance) + ', "credit": ' + str(args.credit) + ', '
                     + '"requested": 0.0, "rate": ' + str(rate) + ', "users": []')
             return status_msg()
 
-        elif subaction == 'delete': # 1 search project, 1 delete project, 1 update tenant
+        elif subaction == 'delete': # 1 search project, 1 delete project
             res = es_search('project', '"project": "' + args.project + '"')
             if num_hits(res) == 0:
                 return status_msg(False, 'project does not exist')
@@ -404,49 +389,71 @@ def main():
                 return status_msg(False, 'failed to delete project: pending transaction')
 
             es_delete('project', '"project": "' + args.project + '"')
-            es_update('tenant', '"name": "' + data['tenant'] + '"', 'ctx._source.total_allocated -= '
-                    + str(data['budget']))
             return status_msg()
 
-        elif subaction == 'modify': # 1 search project, 1 search tenant, 1 update project, 1 update tenant
-            res = es_search('project', '"project": "' + args.project + '"')
-            if num_hits(res) == 0:
-                return status_msg(False, 'project does not exist')
-            if invalid_budget(args):
-                return 1
-            
-            project_data = get_data(res)[0]
-            tenant_data = get_data(es_search('tenant', '"name": "' + project_data['tenant'] + '"'))[0] 
+        elif subaction == 'movebudget': # 1-3 search project, 0-1 search tenant, 1-2 update project 
+            types = args.type.split('2')
+            if types[0] == 'p':
+                res = es_search('project', '"project": "' + args._from + '"')
+                if num_hits(res) == 0:
+                    return status_msg(False, 'from-project does not exist')
+            else:
+                res = es_search('tenant', '"name": "' + args._from + '"')
+                if num_hits(res) == 0:
+                    return status_msg(False, 'tenant does not exist')
+            from_data = get_data(res)[0]
 
-            bal = tenant_data['balance'] + tenant_data['credit']
-            new_alloc = tenant_data['total_allocated'] + args.budget - project_data['budget']
-            if bal < new_alloc:
-                return status_msg(False, 'insufficient budget: overallocation by ' + str(new_alloc - bal))
+            if types[1] == 'p':
+                res = es_search('project', '"project": "' + args.to + '"')
+                if num_hits(res) == 0:
+                    return status_msg(False, 'to-project does not exist')
+            else:
+                res = es_search('tenant', '"name": "' + args.to + '"')
+                if num_hits(res) == 0:
+                    return status_msg(False, 'tenant does not exist')
+            to_data = get_data(res)[0]
 
-            project_bal = tenant_data['balance']/bal * args.budget
-            project_credit = tenant_data['credit']/bal * args.budget
-            es_update('project', '"project": "' + args.project + '"',
-                    'ctx._source.balance = params.bal; ctx._source.credit = params.credit; '
-                    + 'ctx._source.budget = params.budget',
-                    ['bal', 'credit', 'budget'], [project_bal, project_credit, args.budget])
-            es_update('tenant', '"name": "' + project_data['tenant'] + '"', 'ctx._source.total_allocated='
-                    + str(new_alloc))
+            # if from tenant, check that this tenant has enough bal/cred
+            if types[0] == 't':
+                projects_data = get_data(es_search('project', '"tenant": "' + args._from + '"'))
+                # safe to assume money is moving to a project (since it's from a tenant)
+                if insufficient_bal_credit(args.to, args, from_data, projects_data):
+                    return 1
+            else: # if from project, check the same, update the project bal
+                if from_data['balance'] < args.balance:
+                    return status_msg(False, 'insufficient balance')
+                if from_data['credit'] < args.credit:
+                    return status_msg(False, 'insufficient credit')
+                es_update('project', '"project": "' + args._from + '"', 'ctx._source.balance -= params.balance; '
+                        + 'ctx._source.credit -= params.credit', ['balance', 'credit'], [args.balance, args.credit])
+
+            # if no errors, update only if to-project (tenant does not need to be updated)
+            if types[1] == 'p':
+                es_update('project', '"project": "' + args.to + '"', 'ctx._source.balance += params.balance; '
+                        + 'ctx._source.credit += params.credit', ['balance', 'credit'], [args.balance, args.credit])
+
             return status_msg()
 
     elif action == 'user':
-        if subaction == 'add': # 1 count project, 1 update project
-            if invalid_project(args):
-                return 1
+        if subaction == 'add': # 1 search project, 1 update project
+            res = es_search('project', '"project": "' + args.project + '"')
+            if num_hits(res) == 0:
+                return status_msg(False, 'project does not exist')
+            if cii(args.user, get_data(res)[0]['users']):
+                return status_msg(False, 'project already has this user')
             if not (len(args.user) <= 32 and args.user.isalnum()):
                 return status_msg(False, 'invalid user name')
-
+            
             es_update('project', '"project": "' + args.project + '"', 'ctx._source.users.add(params.user)',
                     ['user'], [args.user])
             return status_msg()
 
-        elif subaction == 'delete': #1 count project, 1 update project
-            if invalid_project(args):
-                return 1
+        elif subaction == 'delete': # 1 search project, 1 update project
+            res = es_search('project', '"project": "' + args.project + '"')
+            if num_hits(res) == 0:
+                return status_msg(False, 'project does not exist')
+            if cii(args.user, get_data(res)[0]['users'], False):
+                return status_msg(False, 'project does not have this user')
 
             es_update('project', '"project": "' + args.project + '"',
                     'ctx._source.users.remove(ctx._source.users.indexOf(params.user))', ['user'], [args.user])
@@ -480,8 +487,7 @@ def main():
                     ['requested'], [cost])
             return status_msg()
         
-        elif subaction == 'charge': # 1 search project, 1 search tenant, 1 update project, 1 update tenant,
-                                    # 1 index transaction
+        elif subaction == 'charge': # 1 search project, 1 update project, 1 update tenant, 1 index transaction
             res = es_search('project', '"project": "' + args.project + '"')
             if num_hits(res) == 0:
                 return status_msg(False, 'project does not exist')
@@ -500,33 +506,32 @@ def main():
             if cost <= project_data['balance']:
                 new_bal, new_credit = project_data['balance'] - cost, project_data['credit']
             elif cost <= project_data['balance'] + project_data['credit']:
-                new_bal, new_credit = 0, project_data['credit'] - (cost - project_data['balance'])
+                new_bal, new_credit = 0.0, project_data['credit'] - (cost - project_data['balance'])
             else:
-                new_bal, new_credit = project_data['balance'] - (cost - project_data['credit']), 0
+                new_bal, new_credit = project_data['balance'] - (cost - project_data['credit']), 0.0
 
             es_update('project', '"project": "' + args.project + '"', 'ctx._source.requested -= params.requested;'
                     + 'ctx._source.balance = params.new_bal; ctx._source.credit = params.new_credit',
                     ['requested', 'new_bal', 'new_credit'], [requested, new_bal, new_credit])
-
-            tenant_data = get_data(es_search('tenant', '"name": "' + project_data['tenant'] + '"'))[0]
-            if cost <= tenant_data['balance']:
-                new_bal, new_credit = tenant_data['balance'] - cost, tenant_data['credit']
-            elif cost <= tenant_data['balance'] + tenant_data['credit']:
-                new_bal, new_credit = 0, tenant_data['credit'] - (cost - tenant_data['balance'])
-            else:
-                new_bal, new_credit = tenant_data['balance'] - (cost - tenant_data['credit'])
-
-            es_update('tenant', '"name": "' + project_data['tenant'] + '"', 'ctx._source.balance = params.new_bal;'
-                    + 'ctx._source.credit = params.new_credit', ['new_bal', 'new_credit'], [new_bal, new_credit])
-
+            es_update('tenant', '"name": "' + project_data['tenant'] + '"',
+                    'if (params.cost <= ctx._source.balance) {'
+                    + 'ctx._source.balance -= params.cost;'
+                    + '} else if (params.cost <= ctx._source.balance + ctx._source.credit) {'
+                    + 'ctx._source.credit -= params.cost - ctx._source.balance;'
+                    + 'ctx._source.balance = 0;'
+                    + '} else {'
+                    + 'ctx._source.balance -= params.cost - ctx._source.credit;'
+                    + 'ctx._source.credit = 0;'
+                    + '}', ['cost'], [cost])
             es_index('transaction', '"project": "' + args.project + '", "user": "' + args.user + '", "start": "'
                     + tostrdate(todate(args.start)) + '", "end": "'
                     + tostrdate(todate(args.start) + timedelta(seconds=args.jobtime)) + '", "runtime": '
-                    + str(args.jobtime) + ', "cost": ' + str(cost) + ', "tenant_balance": ' + str(new_bal))
+                    + str(args.jobtime) + ', "cost": ' + str(cost))
             return status_msg()
 
     elif action == 'bill':
         if subaction == 'generate':
+            # ensure validity of arguments
             res = es_search('project', '"project": "' + args.project + '"')
             if num_hits(res) == 0:
                 return status_msg(False, 'project does not exist')
@@ -545,24 +550,45 @@ def main():
                 start, end = curtime-timedelta(days=30), curtime
             else:
                 return status_msg(False, 'invalid date')
-
+            
+            # obtain data from documents
             project_data = get_data(res)[0]
             tenant_data = get_data(es_search('tenant', '"name": "' + project_data['tenant'] + '"'))[0]
             transaction_data = get_data(es_search('transaction', '"must": [{"match": {"project": "' + args.project
-                    + '"}}, {"range": {"end": {"gte": "' + tostrdate(start) + '", "lte": "' + tostrdate(end)
-                    + '"}}}]', True))
-
-            starting_bal = min(transaction_data, key=lambda x: x['end'])['tenant_balance']
-            ending_bal = max(transaction_data, key=lambda x: x['end'])['tenant_balance']
-
+                    + '"}}, {"range": {"end": {"gte": "' + tostrdate(start) + '"}}}]', True))
+            payment_data = get_data(es_search('payment', '"must": [{"match": {"tenant": "' + project_data['tenant'] 
+                    + '"}}, {"range": {"date": {"gte": "' + tostrdate(start) + '"}}}]', True))
+            
+            # sum of transactions/payments within the date range specified
+            range_transactions, range_transaction_total, range_payment_total = [], 0, 0
+            # sum of transactions/payments after the date range specified (but before today)
+            post_transaction_total, post_payment_total = 0, 0
             for transaction in transaction_data:
-                transaction['end'] = tostrdate(todate(transaction['end']).replace(hour=0, minute=0, second=0),
-                        bill_datefmt)
+                date = todate(transaction['end'])
+                if date > end:
+                    post_transaction_total += transaction['cost']
+                else:
+                    range_transactions.append(transaction)
+                    range_transaction_total += transaction['cost']
+            for payment in payment_data:
+                date = todate(payment['date'])
+                if date > end:
+                    post_payment_total += payment['payment']
+                else:
+                    range_payment_total += payment['payment']
+
+            # calculate bbalance/ebalance
+            ending_bal = tenant_data['balance'] - post_payment_total + post_transaction_total
+            starting_bal = ending_bal - range_payment_total + range_transaction_total
+
+            # calculate user hour usage
+            for transaction in range_transactions:
+                transaction['end'] = tostrdate(todate(transaction['end']), bill_datefmt)
             dates = set([x['end'] for x in transaction_data])
             bill = [{'date': date, 'activity': []} for date in dates]
             total_cost, total_hours = 0, 0
 
-            for transaction in transaction_data:
+            for transaction in range_transactions:
                 runtime = transaction['runtime'] / 3600 # runtime in hours
                 total_hours += runtime
                 total_cost += transaction['cost']
@@ -577,18 +603,14 @@ def main():
                                 break
                         if not found:
                             b['activity'].append({'user': transaction['user'],
-                                    'hours': transaction['runtime' / 3600]})
+                                    'hours': transaction['runtime'] / 3600})
                         break
- 
-            payment_data = get_data(es_search('payment', '"must": [{"match": {"tenant": "' + project_data['tenant'] 
-                    + '"}}, {"range": {"date": {"gte": "' + tostrdate(start) + '", "lte": "' + tostrdate(end)
-                    + '"}}}]', True))
-            total_payment = sum([payment['payment'] for payment in payment_data])
-
+            
+            # aggregate data
             bill = {'tenant': project_data['tenant'], 'project': args.project,
                     'from': tostrdate(start, bill_datefmt), 'to': tostrdate(end, bill_datefmt), 'bill': bill,
                     'total_hours': total_hours, 'total_cost': total_cost, 'bbalance': starting_bal,
-                    'payments': total_payment, 'ebalance': ending_bal}
+                    'payments': range_payment_total, 'ebalance': ending_bal}
 
             return status_msg(status={'bill': bill})
 
