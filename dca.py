@@ -184,7 +184,9 @@ def num_hits(result):
     return result['hits']['total']
 
 def get_data(result, field=''):
-    data = []
+    if 'found' in result: # result is from es.get
+        return result['_source'][field] if field else result['_source']
+    data = [] # result is from es.search
     for hit in result['hits']['hits']:
         data.append(hit['_source'][field] if field else hit['_source'])
     return data
@@ -200,23 +202,7 @@ def multiquery(matches, ranges):
     queries.extend(['{"range": {' + rang + '}}' for rang in ranges]) # range is a keyword, rang is used instead
     return '"query": {"bool": {"must": ' + str(queries).replace("'", '') + '}}'
 
-def es_query(func, doc_type, body):
-    return func(index="dca", doc_type=doc_type, body=('{' + body + '}'))
-
-def es_index(doc_type, body):
-    return es_query(es.index, doc_type, body)
-
-def es_count(doc_type, matches=[], ranges=[]):
-    return es_query(es.count, doc_type, multiquery(matches, ranges))
-
-def es_search(doc_type, matches=[], ranges=[]):
-    return es_query(es.search, doc_type, multiquery(matches, ranges))
-
-def es_delete(doc_type, matches=[], ranges=[]):
-    return es_query(es.delete_by_query, doc_type, multiquery(matches, ranges))
-
-# script should already contain data about which values should be changed to what params
-def es_update(doc_type, matches=[], ranges=[], script='', fields=[], values=[]):
+def generate_params(fields, values):
     params = ''
     for i in range(len(fields)):
         if i != 0:
@@ -229,9 +215,45 @@ def es_update(doc_type, matches=[], ranges=[], script='', fields=[], values=[]):
             params += str(value)
         else:
             params += '"' + value + '"'
+    return params
+
+def es_query(func, doc_type, body=None, id=None):
+    if id == None:
+        return func(index="dca", doc_type=doc_type, body=('{' + body + '}'))
+    if body == None:
+        return func(index="dca", doc_type=doc_type, id=id)
+    return func(index="dca", doc_type=doc_type, id=id, body=('{' + body + '}'))
+
+def es_index(doc_type, body, id=None):
+    return es_query(es.index, doc_type, body, id)
+
+def es_count(doc_type, matches=[], ranges=[]):
+    return es_query(es.count, doc_type, multiquery(matches, ranges))
+
+def es_get(doc_type, id):
+    return es_query(es.get, doc_type=doc_type, id=id)
+
+def es_search(doc_type, matches=[], ranges=[], size=10000):
+    return es_query(es.search, doc_type, multiquery(matches, ranges))
+
+def es_delete(doc_type, matches=[], ranges=[]):
+    return es_query(es.delete_by_query, doc_type, multiquery(matches, ranges))
+
+def es_update(doc_type, id, script='', fields=[], values=[]):
+    params = generate_params(fields, values)
+    return es_query(es.update, doc_type, '"script": {"inline": "' + script + '"' + (', "params": {' + params
+            + '}' if fields else '') + '}', id=id)
+
+# script should already contain data about which values should be changed to what params
+def es_update_by_query(doc_type, matches=[], ranges=[], script='', fields=[], values=[]):
+    params = generate_params(fields, values)
     body = multiquery(matches, ranges)
     return es_query(es.update_by_query, doc_type, (body + ', ' if body else '') + '"script": {"inline": "'
             + script + '"' + (', "params": {' + params + '}' if fields else '') + '}')
+
+def es_log(category, action, details):
+    return es_query(es.index, 'log', '"category": "' + category + '", "action": "' + action + '", "details": "'
+            + details + '", "date": "' + tostrdate(now()) + '"')
 
 # List of errors
 
@@ -305,7 +327,7 @@ def main():
 
         if args.project: # if project has been specified
             tenant = tenants[0] # there can only be one tenant
-            project_data = get_data(es_search('project', ['"project": "' + args.project + '"']))[0]
+            project_data = get_data(es_get('project', args.project))
             del tenant['d']
             del project_data['d']
             # if user has been specified and is not in the user list
@@ -346,7 +368,8 @@ def main():
             if invalid_credit(args):
                 return 1
             es_index('tenant', '"name": "' + args.tenant + '", "balance": 0.0, "credit": ' + str(args.credit)
-                    + ', "projects": [], "d": false')
+                    + ', "projects": [], "d": false', args.tenant)
+            es_log(action, subaction, 'name: ' + args.tenant + ', credit: ' + str(args.credit))
             return status_msg()
 
         elif subaction == 'disable': # 1 search tenant, 1 update tenant, 1 update project
@@ -357,11 +380,14 @@ def main():
             res = es_search('tenant', ['"name": "' + args.tenant + '"'])
             if num_hits(res) == 0:
                 return status_msg(False, 'tenant does not exist')
-            if get_data(res, 'd')[0]:
+            project_data = get_data(res)[0]
+            if project_data['d']:
                 return status_msg(False, 'tenant is already disabled')
 
-            es_update('tenant', ['"name": "' + args.tenant + '"'], [], 'ctx._source.d = true')
-            es_update('project', ['"tenant": "' + args.tenant + '"'], [], 'ctx._source.d = true')
+            es_update('tenant', args.tenant, 'ctx._source.d = true')
+            for project in project_data:
+                es_update('project', project['project'], 'ctx._source.d = true')
+            es_log(action, subaction, 'name: ' + args.tenant)
             return status_msg()
 
         elif subaction == 'modify': # 1 search tenant, 1 update tenant
@@ -372,8 +398,13 @@ def main():
                 return status_msg(False, 'tenant is disabled')
             if invalid_credit(args):
                 return 1
+            projects_data = get_data(es_search('project', ['"tenant": "' + args.tenant + '"']))
+            total_credit = sum([project['credit'] for project in projects_data])
+            if total_credit > args.credit:
+                return status_msg(False, 'too much credit allocated to projects to reduce tenant credit')
 
-            es_update('tenant', ['"name": "' + args.tenant + '"'], [], 'ctx._source.credit=' + str(args.credit))
+            es_update('tenant', args.tenant, 'ctx._source.credit=' + str(args.credit))
+            es_log(action, subaction, 'name: ' + args.tenant + ', credit: ' + str(args.credit))
             return status_msg()
 
         elif subaction == 'payment': # 1 search tenant, 1 update tenant, 1 index payment
@@ -385,9 +416,10 @@ def main():
             if not ismoney(args.payment):
                 return status_msg(False, 'invalid payment')
 
-            es_update('tenant', ['"name": "' + args.tenant + '"'], [], 'ctx._source.balance+=' + str(args.payment))
+            es_update('tenant', args.tenant, 'ctx._source.balance+=' + str(args.payment))
             es_index('payment', '"tenant": "' + args.tenant + '", "date": "' + tostrdate(now())
                     + '", "payment": ' + str(args.payment))
+            es_log(action, subaction, 'name: ' + args.tenant + ', payment: ' + str(args.payment))
             return status_msg()
 
     elif action == 'project':
@@ -412,12 +444,14 @@ def main():
             if insufficient_bal_credit(args.project, args, tenant_data, projects_data):
                 return 1
 
-            rate = get_data(es_search('rate'), 'rate')[0]       # hardcoded way of getting the rate
-            es_update('tenant', ['"name": "' + args.tenant + '"'], [], 'ctx._source.projects.add(params.project)',
-                    ['project'], [args.project])
+            rate = get_data(es_get('rate', 'rate'), 'rate')       # hardcoded way of getting the rate
+            es_update('tenant', args.tenant, 'ctx._source.projects.add(params.project)', ['project'],
+                    [args.project])
             es_index('project', '"tenant": "' + args.tenant + '", "project": "' + args.project + '", '
                     +'"balance": ' + str(args.balance) + ', "credit": ' + str(args.credit) + ', '
-                    + '"requested": 0.0, "rate": ' + str(rate) + ', "users": [], "d": false')
+                    + '"requested": 0.0, "rate": ' + str(rate) + ', "users": [], "d": false', args.project)
+            es_log(action, subaction, 'project: ' + args.project + ', tenant: ' + args.tenant + ', balance: '
+                    + str(args.balance) + ', credit: ' + str(args.credit))
             return status_msg()
 
         elif subaction == 'disable': # 1 search project, 1 update project
@@ -434,7 +468,8 @@ def main():
             if data['requested'] != 0:
                 return status_msg(False, 'failed to disable project: pending transaction')
 
-            es_update('project', ['"project": "' + args.project + '"'], [], 'ctx._source.d = true')
+            es_update('project', args.project, 'ctx._source.d = true')
+            es_log(action, subaction, 'project: ' + args.project)
             return status_msg()
 
         elif subaction == 'movebudget': # 1-3 search project, 0-1 search tenant, 1-2 update project 
@@ -468,6 +503,14 @@ def main():
                 to_data = get_data(res)[0]
                 if to_data['d']:
                     return status_msg(False, 'tenant is disabled')
+            
+            # ensure ownership (p belongs to t, both p are under same t)
+            if types[0] == 'p' and types[1] == 'p':
+                if cic(from_data['tenant'], to_data['tenant'], False):
+                    return status_msg(False, 'projects do not belong to the same tenant')
+            elif types[0] == 'p' and cic(from_data['tenant'], args.to, False) \
+                or types[1] == 'p' and cic(args._from, to_data['tenant'], False):
+                return status_msg(False, 'project does not belong to tenant')
 
             # if from tenant, check that this tenant has enough bal/cred
             if types[0] == 't':
@@ -480,15 +523,16 @@ def main():
                     return status_msg(False, 'insufficient balance')
                 if from_data['credit'] < args.credit:
                     return status_msg(False, 'insufficient credit')
-                es_update('project', ['"project": "' + args._from + '"'], [],
-                        'ctx._source.balance -= params.balance; ctx._source.credit -= params.credit',
-                        ['balance', 'credit'], [args.balance, args.credit])
+                es_update('project', args._from, 'ctx._source.balance -= params.balance; '
+                        + 'ctx._source.credit -= params.credit', ['balance', 'credit'], [args.balance, args.credit])
 
             # if no errors, update only if to-project (tenant does not need to be updated)
             if types[1] == 'p':
-                es_update('project', ['"project": "' + args.to + '"'], [], 'ctx._source.balance += params.balance; '
+                es_update('project', args.to, 'ctx._source.balance += params.balance; '
                         + 'ctx._source.credit += params.credit', ['balance', 'credit'], [args.balance, args.credit])
 
+            es_log(action, subaction, 'from: ' + args._from + ', to: ' + args.to + ', balance: ' + str(args.balance)
+                    + ', credit: ' + str(args.credit) + ', type: ' + args.type)
             return status_msg()
 
     elif action == 'user':
@@ -501,8 +545,8 @@ def main():
             if not (len(args.user) <= 32 and args.user.isalnum()):
                 return status_msg(False, 'invalid user name')
             
-            es_update('project', ['"project": "' + args.project + '"'], [], 'ctx._source.users.add(params.user)',
-                    ['user'], [args.user])
+            es_update('project', args.project, 'ctx._source.users.add(params.user)', ['user'], [args.user])
+            es_log(action, subaction, 'project: ' + args.project + ', user: ' + args.user)
             return status_msg()
 
         elif subaction == 'delete': # 1 search project, 1 update project
@@ -512,20 +556,22 @@ def main():
             if cii(args.user, project_data['users'], False):
                 return status_msg(False, 'project does not have this user')
 
-            es_update('project', ['"project": "' + args.project + '"'], [],
-                    'ctx._source.users.remove(ctx._source.users.indexOf(params.user))', ['user'], [args.user])
+            es_update('project', args.project, 'ctx._source.users.remove(ctx._source.users.indexOf(params.user))',
+                    ['user'], [args.user])
+            es_log(action, subaction, 'project: ' + args.project + ', user: ' + args.user)
             return status_msg()
     
     elif action == 'rate':
         if subaction == 'set': # 1 update rate, 1 update project
             if not ismoney(args.rate):
                 return status_msg(False, 'invalid rate')
-            es_update('rate', [], [], 'ctx._source.rate=' + str(args.rate))
-            es_update('project', [], [], 'ctx._source.rate=' + str(args.rate))
+            es_update('rate', 'rate', 'ctx._source.rate=' + str(args.rate))
+            es_update_by_query('project', [], [], 'ctx._source.rate=' + str(args.rate))
+            es_log(action, subaction, 'rate: ' + str(args.rate))
             return status_msg()
         
         elif subaction == 'get': # 1 search rate
-            rate = get_data(es_search('rate'), 'rate')[0]
+            rate = get_data(es_get('rate', 'rate'), 'rate')
             return status_msg(status={'rate': rate})
 
     elif action == 'transaction':
@@ -539,8 +585,7 @@ def main():
             if project_data['balance'] + project_data['credit'] - project_data['requested'] < cost:
                 return status_msg(False, 'insufficient project budget')
 
-            es_update('project', ['"project": "' + args.project + '"'], [],
-                    'ctx._source.requested+=params.requested', ['requested'], [cost])
+            es_update('project', args.project, 'ctx._source.requested+=params.requested', ['requested'], [cost])
             return status_msg()
         
         elif subaction == 'charge': # 1 search project, 1 update project, 1 update tenant, 1 index transaction
@@ -565,11 +610,11 @@ def main():
             else:
                 new_bal, new_credit = project_data['balance'] - (cost - project_data['credit']), 0.0
 
-            es_update('project', ['"project": "' + args.project + '"'], [],
+            es_update('project', args.project,
                     'ctx._source.requested -= params.requested; '
                     + 'ctx._source.balance = params.new_bal; ctx._source.credit = params.new_credit',
                     ['requested', 'new_bal', 'new_credit'], [requested, new_bal, new_credit])
-            es_update('tenant', ['"name": "' + project_data['tenant'] + '"'], [],
+            es_update('tenant', project_data['tenant'],
                     'if (params.cost <= ctx._source.balance) {'
                     + 'ctx._source.balance -= params.cost;'
                     + '} else if (params.cost <= ctx._source.balance + ctx._source.credit) {'
@@ -609,7 +654,7 @@ def main():
             
             # obtain data from documents
             project_data = get_data(res)[0]
-            tenant_data = get_data(es_search('tenant', ['"name": "' + project_data['tenant'] + '"']))[0]
+            tenant_data = get_data(es_get('tenant', project_data['tenant']))
             transaction_data = get_data(es_search('transaction', ['"project": "' + args.project + '"'],
                     ['"end": {"gte": "' + tostrdate(start) + '"}']))
             payment_data = get_data(es_search('payment', ['"tenant": "' + project_data['tenant'] + '"'],
