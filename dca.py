@@ -192,11 +192,12 @@ def get_data(result, field=''):
     return data
 
 def multiquery(matches, ranges):
-    if len(matches) + len(ranges) == 0:
+    num_matches, num_ranges = len(matches), len(ranges)
+    if num_matches + num_ranges == 0:
         return ''
-    if len(matches) == 1:
+    if num_matches == 1 and num_ranges == 0:
         return '"query": {"match": {' + matches[0] + '}}'
-    if len(ranges) == 1:
+    if num_ranges == 1 and num_matches == 0:
         return '"query": {"range": {' + ranges[0] + '}}'
     queries = ['{"match": {' + match + '}}' for match in matches]
     queries.extend(['{"range": {' + rang + '}}' for rang in ranges]) # range is a keyword, rang is used instead
@@ -315,7 +316,7 @@ def main():
                 res = es_search('tenant', ['"name": "' + args.tenant + '"'])
                 if num_hits(res) == 0:
                     return status_msg(False, 'tenant not found')
-                if get_data(res, 'd'):
+                if get_data(res, 'd')[0]:
                     return status_msg(False, 'tenant is disabled')
             if args.project:
                 project_data = invalid_project(args)
@@ -328,6 +329,8 @@ def main():
         if args.project: # if project has been specified
             tenant = tenants[0] # there can only be one tenant
             project_data = get_data(es_get('project', args.project))
+            if project_data['d']:
+                return status_msg(False, 'project is disabled')
             del tenant['d']
             del project_data['d']
             # if user has been specified and is not in the user list
@@ -357,7 +360,7 @@ def main():
         subaction = sys.argv[2]
 
     if action == 'tenant':
-        if subaction == 'add': # 1 search tenant, 1 index tenant
+        if subaction == 'add':
             res = es_search('tenant', ['"name": "' + args.tenant + '"'])
             if num_hits(res) > 0:
                 if get_data(res, 'd')[0]: # if the existing tenant is disabled
@@ -372,7 +375,7 @@ def main():
             es_log(action, subaction, 'name: ' + args.tenant + ', credit: ' + str(args.credit))
             return status_msg()
 
-        elif subaction == 'disable': # 1 search tenant, 1 update tenant, 1 update project
+        elif subaction == 'disable':
             if not args.y:
                 if confirmation():
                     return 1
@@ -380,17 +383,19 @@ def main():
             res = es_search('tenant', ['"name": "' + args.tenant + '"'])
             if num_hits(res) == 0:
                 return status_msg(False, 'tenant does not exist')
-            project_data = get_data(res)[0]
-            if project_data['d']:
+            tenant_data = get_data(res)[0]
+            if tenant_data['d']:
                 return status_msg(False, 'tenant is already disabled')
 
+            for project in tenant_data['projects']:
+                if get_data(es_get('project', project), 'requested') != 0:
+                    return status_msg(False, 'tenant has a project with pending transactions')
+                es_update('project', project, 'ctx._source.d = true')
             es_update('tenant', args.tenant, 'ctx._source.d = true')
-            for project in project_data:
-                es_update('project', project['project'], 'ctx._source.d = true')
             es_log(action, subaction, 'name: ' + args.tenant)
             return status_msg()
 
-        elif subaction == 'modify': # 1 search tenant, 1 update tenant
+        elif subaction == 'modify':
             res = es_search('tenant', ['"name": "' + args.tenant + '"'])
             if num_hits(res) == 0:
                 return status_msg(False, 'tenant does not exist')
@@ -407,7 +412,7 @@ def main():
             es_log(action, subaction, 'name: ' + args.tenant + ', credit: ' + str(args.credit))
             return status_msg()
 
-        elif subaction == 'payment': # 1 search tenant, 1 update tenant, 1 index payment
+        elif subaction == 'payment':
             res = es_search('tenant', ['"name": "' + args.tenant + '"'])
             if num_hits(res) == 0:
                 return status_msg(False, 'tenant does not exist')
@@ -423,7 +428,7 @@ def main():
             return status_msg()
 
     elif action == 'project':
-        if subaction == 'add': # 1 search tenant, 2 search project, 1 search rate, 1 update tenant, 1 index project
+        if subaction == 'add':
             res = es_search('tenant', ['"name": "' + args.tenant + '"'])
             if num_hits(res) == 0:
                 return status_msg(False, 'tenant does not exist')
@@ -454,7 +459,7 @@ def main():
                     + str(args.balance) + ', credit: ' + str(args.credit))
             return status_msg()
 
-        elif subaction == 'disable': # 1 search project, 1 update project
+        elif subaction == 'disable':
             if not args.y:
                 if confirmation():
                     return 1
@@ -466,13 +471,13 @@ def main():
             if data['d']:
                 return status_msg(False, 'project is already disabled')
             if data['requested'] != 0:
-                return status_msg(False, 'failed to disable project: pending transaction')
+                return status_msg(False, 'project cannot be disabled: pending transaction')
 
             es_update('project', args.project, 'ctx._source.d = true')
             es_log(action, subaction, 'project: ' + args.project)
             return status_msg()
 
-        elif subaction == 'movebudget': # 1-3 search project, 0-1 search tenant, 1-2 update project 
+        elif subaction == 'movebudget': 
             types = args.type.split('2')
             if types[0] == 'p':
                 res = es_search('project', ['"project": "' + args._from + '"'])
@@ -536,7 +541,7 @@ def main():
             return status_msg()
 
     elif action == 'user':
-        if subaction == 'add': # 1 search project, 1 update project
+        if subaction == 'add':
             project_data = invalid_project(args)
             if project_data == 1:
                 return 1
@@ -549,7 +554,7 @@ def main():
             es_log(action, subaction, 'project: ' + args.project + ', user: ' + args.user)
             return status_msg()
 
-        elif subaction == 'delete': # 1 search project, 1 update project
+        elif subaction == 'delete':
             project_data = invalid_project(args)
             if project_data == 1:
                 return 1
@@ -562,7 +567,7 @@ def main():
             return status_msg()
     
     elif action == 'rate':
-        if subaction == 'set': # 1 update rate, 1 update project
+        if subaction == 'set':
             if not ismoney(args.rate):
                 return status_msg(False, 'invalid rate')
             es_update('rate', 'rate', 'ctx._source.rate=' + str(args.rate))
@@ -570,12 +575,12 @@ def main():
             es_log(action, subaction, 'rate: ' + str(args.rate))
             return status_msg()
         
-        elif subaction == 'get': # 1 search rate
+        elif subaction == 'get':
             rate = get_data(es_get('rate', 'rate'), 'rate')
             return status_msg(status={'rate': rate})
 
     elif action == 'transaction':
-        if subaction == 'reservebudget': # 1 search project, 1 update project
+        if subaction == 'reservebudget':
             project_data = invalid_project(args)
             if project_data == 1:
                 return 1
@@ -588,7 +593,7 @@ def main():
             es_update('project', args.project, 'ctx._source.requested+=params.requested', ['requested'], [cost])
             return status_msg()
         
-        elif subaction == 'charge': # 1 search project, 1 update project, 1 update tenant, 1 index transaction
+        elif subaction == 'charge':
             project_data = invalid_project(args)
             if project_data == 1:
                 return 1
@@ -661,9 +666,9 @@ def main():
                     ['"date": {"gte": "' + tostrdate(start) + '"}']))
             
             # sum of transactions/payments within the date range specified
-            range_transactions, range_transaction_total, range_payment_total = [], 0, 0
+            range_transactions, range_transaction_total, range_payment_total = [], 0.0, 0.0
             # sum of transactions/payments after the date range specified (but before today)
-            post_transaction_total, post_payment_total = 0, 0
+            post_transaction_total, post_payment_total = 0.0, 0.0
             for transaction in transaction_data:
                 date = todate(transaction['end'])
                 if date > end:
