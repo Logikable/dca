@@ -84,21 +84,20 @@ def getargs():
     generate_bill_parser.add_argument('--project', required=True)
     generate_bill_parser.add_argument('--time_period', required=True)
 
-    # if run with no arguments
+    # if run with no arguments, simply print the help message
     if len(sys.argv) == 1:
         parser.print_help()
         sys.exit(1)
-    args = parser.parse_args()
-    return args
+    return parser.parse_args()
     
 # Helpers
 
-# Pretty print json
+# pretty print json
 def pretty(jjson):
     import json
     print(json.dumps(jjson, sort_keys=False, indent=4, separators=(',', ': ')))
 
-# case insensitive comparison
+# case insensitive comparison, result is the expected result (similar to (str1 == str2) == result)
 def cic(str1, str2, result=True):
     # strings are equal XOR negate - returns True only when booleans are T/F or F/T
     return (str1.lower() == str2.lower()) ^ (not result)
@@ -135,14 +134,14 @@ def ispercent(val):
     val = float(val)
     return val >= 0 and val <= 100
 
+# not to be confused with isdate, istime checks an integer difference in time measured in seconds
 def istime(val):
     if not isint(val):
         return False
     return int(val) >= 0
 
-datefmt = '%Y-%m-%d %H:%M:%S'
-datenever = datetime(3333, 1, 1)
-def isdate(date, datefmt=datefmt):
+datefmt = '%Y-%m-%d %H:%M:%S' # used to insert/retrieve dates from elasticsearch; same format used for both
+def isdate(date, datefmt=datefmt): # works with dates, non-negative integers (epoch time), strings using datefmt
     if isinstance(date, datetime):
         return True
     if isint(date):
@@ -155,35 +154,33 @@ def isdate(date, datefmt=datefmt):
 
 # please check that date is a date before using this function
 # returns in datefmt
-def todate(date, datefmt=datefmt):
+def todate(date, datefmt=datefmt): # converts strings, dates, non-negative integers into a date object
     if isinstance(date, datetime):
         return date
-    if cic(date, "never"):
-        return datenever
     if isint(date):
         return datetime.fromtimestamp(int(date))
     return datetime.strptime(date, datefmt)
 
-def tostrdate(date, datefmt=datefmt):
+def tostrdate(date, datefmt=datefmt): # converts a date to a string (defaults to elasticsearch date format)
     return date.strftime(datefmt)
 
-def now():
-    return datetime.now().replace(microsecond=0)
-
-def confirmation():
+def confirmation(): # used when disabling tenant/project, double checks that the user wants to do something
     print('Are you sure? (y/n) ', end='')
     if cic(input(), 'y', False):
-        return status_msg(False, 'failed to delete: no confirmation')
+        return status_msg(False, 'failed to disable: no confirmation')
     return 0
+
+now = lambda: datetime.now().replace(microsecond=0) # returns current time
+rnd = lambda n: round(n, 2) # short hand for rounding to 2 decimals
 
 # Query functions
 
-def num_hits(result):
+def num_hits(result): # returns number of results from a count/search query
     if 'count' in result:
         return result['count']
     return result['hits']['total']
 
-def get_data(result, field=''):
+def get_data(result, field=''): # returns the data from a get/search query
     if 'found' in result: # result is from es.get
         return result['_source'][field] if field else result['_source']
     data = [] # result is from es.search
@@ -191,7 +188,7 @@ def get_data(result, field=''):
         data.append(hit['_source'][field] if field else hit['_source'])
     return data
 
-def multiquery(matches, ranges):
+def multiquery(matches, ranges): # creates a query that satisfies all equivalences/ranges provided as args
     num_matches, num_ranges = len(matches), len(ranges)
     if num_matches + num_ranges == 0:
         return ''
@@ -199,10 +196,12 @@ def multiquery(matches, ranges):
         return '"query": {"match": {' + matches[0] + '}}'
     if num_ranges == 1 and num_matches == 0:
         return '"query": {"range": {' + ranges[0] + '}}'
+    # whenever there are at least two queries that need to be satisfied
     queries = ['{"match": {' + match + '}}' for match in matches]
     queries.extend(['{"range": {' + rang + '}}' for rang in ranges]) # range is a keyword, rang is used instead
     return '"query": {"bool": {"must": ' + str(queries).replace("'", '') + '}}'
 
+# from a field/value dictionary (provided in the form of two lists) create a parameters dictionary suitable for ES
 def generate_params(fields, values):
     params = ''
     for i in range(len(fields)):
@@ -218,33 +217,36 @@ def generate_params(fields, values):
             params += '"' + value + '"'
     return params
 
-def es_query(func, doc_type, body=None, id=None):
+# Query functions
+
+def es_query(func, doc_type, body=None, id=None): # all ES function calls go through this function
     if id == None:
-        return func(index="dca", doc_type=doc_type, body=('{' + body + '}'))
+        return func(index="dca", doc_type=doc_type, body=('{' + body + '}'), size=10000)
     if body == None:
         return func(index="dca", doc_type=doc_type, id=id)
-    return func(index="dca", doc_type=doc_type, id=id, body=('{' + body + '}'))
+    return func(index="dca", doc_type=doc_type, id=id, body=('{' + body + '}'), size=10000)
 
-def es_index(doc_type, body, id=None):
+def es_index(doc_type, body, id=None): # adding a document
     return es_query(es.index, doc_type, body, id)
 
-def es_count(doc_type, matches=[], ranges=[]):
+def es_count(doc_type, matches=[], ranges=[]): # counting num results
     return es_query(es.count, doc_type, multiquery(matches, ranges))
 
-def es_get(doc_type, id):
+def es_get(doc_type, id): # getting a known document
     return es_query(es.get, doc_type=doc_type, id=id)
 
-def es_search(doc_type, matches=[], ranges=[], size=10000):
+def es_search(doc_type, matches=[], ranges=[]): # searching for results, obtaining all that satisfy query
     return es_query(es.search, doc_type, multiquery(matches, ranges))
 
-def es_delete(doc_type, matches=[], ranges=[]):
+def es_delete(doc_type, matches=[], ranges=[]): # delete documents satisfying query
     return es_query(es.delete_by_query, doc_type, multiquery(matches, ranges))
 
-def es_update(doc_type, id, script='', fields=[], values=[]):
+def es_update(doc_type, id, script='', fields=[], values=[]): # update known document
     params = generate_params(fields, values)
     return es_query(es.update, doc_type, '"script": {"inline": "' + script + '"' + (', "params": {' + params
             + '}' if fields else '') + '}', id=id)
 
+# update all documents that satisfy a query
 # script should already contain data about which values should be changed to what params
 def es_update_by_query(doc_type, matches=[], ranges=[], script='', fields=[], values=[]):
     params = generate_params(fields, values)
@@ -252,7 +254,7 @@ def es_update_by_query(doc_type, matches=[], ranges=[], script='', fields=[], va
     return es_query(es.update_by_query, doc_type, (body + ', ' if body else '') + '"script": {"inline": "'
             + script + '"' + (', "params": {' + params + '}' if fields else '') + '}')
 
-def es_log(category, action, details):
+def es_log(category, action, details): # log details of actions
     return es_query(es.index, 'log', '"category": "' + category + '", "action": "' + action + '", "details": "'
             + details + '", "date": "' + tostrdate(now()) + '"')
 
@@ -292,6 +294,7 @@ def insufficient_bal_credit(proj, args, tenant_data, projects_data):
         return status_msg(False, 'insufficient credit in tenant')
     return 0
 
+# called at the end of an API call's life - should terminate the program and either spit out an error or result
 # an argumentless function call indicates no error
 def status_msg(success=True, error='no error', status={}):
     status['status'] = 'success' if success else 'failed'
@@ -478,6 +481,7 @@ def main():
             return status_msg()
 
         elif subaction == 'movebudget': 
+            # check if either 'from' or 'to' argument does not exist/is disabled
             types = args.type.split('2')
             if types[0] == 'p':
                 res = es_search('project', ['"project": "' + args._from + '"'])
@@ -580,6 +584,7 @@ def main():
             return status_msg(status={'rate': rate})
 
     elif action == 'transaction':
+        # validate arguments, calculate and update amount requested to the project
         if subaction == 'reservebudget':
             project_data = invalid_project(args)
             if project_data == 1:
@@ -593,6 +598,7 @@ def main():
             es_update('project', args.project, 'ctx._source.requested+=params.requested', ['requested'], [cost])
             return status_msg()
         
+        # validate arguments, calculate project's new bal/cred, calculate tenant's new bal/cred, index transaction
         elif subaction == 'charge':
             project_data = invalid_project(args)
             if project_data == 1:
@@ -692,16 +698,19 @@ def main():
                 transaction['end'] = tostrdate(todate(transaction['end']), bill_datefmt)
             dates = set([x['end'] for x in transaction_data])
             bill = [{'date': date, 'activity': []} for date in dates]
-            total_cost, total_hours = 0, 0
+            total_cost, total_hours = 0.0, 0.0
 
+            # each transaction is inserted into the bill
             for transaction in range_transactions:
                 runtime = transaction['runtime'] / 3600 # runtime in hours
                 total_hours += runtime
                 total_cost += transaction['cost']
                 
+                # find the entry in the bill whose date corresponds with the transaction's
                 for b in bill:
                     if b['date'] == transaction['end']:
-                        found = False 
+                        # find the specified user in the bill entry - if not found, create the user
+                        found = False
                         for u in b['activity']:
                             if u['user'] == transaction['user']:
                                 found = True
@@ -709,14 +718,19 @@ def main():
                                 break
                         if not found:
                             b['activity'].append({'user': transaction['user'],
-                                    'hours': transaction['runtime'] / 3600})
+                                    'hours': runtime})
                         break
+
+            # rounding values
+            for b in bill:
+                for u in b['activity']:
+                    u['hours'] = rnd(u['hours'])
             
             # aggregate data
             bill = {'tenant': project_data['tenant'], 'project': args.project,
                     'from': tostrdate(start, bill_datefmt), 'to': tostrdate(end, bill_datefmt), 'bill': bill,
-                    'total_hours': total_hours, 'total_cost': total_cost, 'bbalance': starting_bal,
-                    'payments': range_payment_total, 'ebalance': ending_bal}
+                    'total_hours': rnd(total_hours), 'total_cost': rnd(total_cost), 'bbalance': rnd(starting_bal),
+                    'payments': rnd(range_payment_total), 'ebalance': rnd(ending_bal)}
 
             return status_msg(status={'bill': bill})
 
