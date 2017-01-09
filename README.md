@@ -4,7 +4,7 @@ Install Python 3 (any version above is fine), ElasticSearch 5, and Elasticsearch
 Run dca_setup first to construct the indexing structure. This will also set the rate in which tenants are charged (defaults to $3000/hr). dca is then ready to be used.
 
 # Commands:
-You may have to view this document as raw in order for the commands to load properly.
+You may have to view this document as raw in order for the commands to be viewed properly.
 
 dca tenant add --tenant=<name> [--credit=<amount>]
 dca tenant disable --tenant=<name> [-y]
