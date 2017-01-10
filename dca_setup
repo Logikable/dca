@@ -59,4 +59,4 @@ body = ('{'
 '}')
 
 es.indices.create(index='dca', body=body)
-es.index(index='dca', doc_type='rate', id='rate', body='{"rate": 3000.0}')
+es.index(index='dca', doc_type='rate', id='rate', body='{"rate": 0.0}')

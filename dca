@@ -12,66 +12,68 @@ import sys
 
 def getargs():
     parser = argparse.ArgumentParser()
+    mini_parser = argparse.ArgumentParser(add_help=False)
+    mini_parser.add_argument('--mini', '-m', action='store_true')
     subparsers = parser.add_subparsers()
 
     tenant_parser = subparsers.add_parser('tenant')
     tenant_subparsers = tenant_parser.add_subparsers()
-    add_tenant_parser = tenant_subparsers.add_parser('add')
+    add_tenant_parser = tenant_subparsers.add_parser('add', parents=[mini_parser])
     add_tenant_parser.add_argument('--tenant', required=True)
     add_tenant_parser.add_argument('--credit', type=float, default=0.0)
-    delete_tenant_parser = tenant_subparsers.add_parser('disable')
-    delete_tenant_parser.add_argument('--tenant', required=True)
-    delete_tenant_parser.add_argument('-y', action='store_true')
-    modify_tenant_parser = tenant_subparsers.add_parser('modify')
+    disable_tenant_parser = tenant_subparsers.add_parser('disable', parents=[mini_parser])
+    disable_tenant_parser.add_argument('--tenant', required=True)
+    disable_tenant_parser.add_argument('-y', action='store_true')
+    modify_tenant_parser = tenant_subparsers.add_parser('modify', parents=[mini_parser])
     modify_tenant_parser.add_argument('--tenant', required=True)
     modify_tenant_parser.add_argument('--credit', type=float, required=True)
-    payment_tenant_parser = tenant_subparsers.add_parser('payment')
+    payment_tenant_parser = tenant_subparsers.add_parser('payment', parents=[mini_parser])
     payment_tenant_parser.add_argument('--tenant', required=True)
     payment_tenant_parser.add_argument('--payment', type=float, required=True)
 
     project_parser = subparsers.add_parser('project')
     project_subparsers = project_parser.add_subparsers()
-    add_project_parser = project_subparsers.add_parser('add')
+    add_project_parser = project_subparsers.add_parser('add', parents=[mini_parser])
     add_project_parser.add_argument('--tenant', required=True)
     add_project_parser.add_argument('--project', required=True)
     add_project_parser.add_argument('--balance', type=float, default=0.0)
     add_project_parser.add_argument('--credit', type=float, default=0.0)
-    delete_project_parser = project_subparsers.add_parser('disable')
-    delete_project_parser.add_argument('--project', required=True)
-    delete_project_parser.add_argument('-y', action='store_true')
-    movebudget_project_parser = project_subparsers.add_parser('movebudget')
+    disable_project_parser = project_subparsers.add_parser('disable', parents=[mini_parser])
+    disable_project_parser.add_argument('--project', required=True)
+    disable_project_parser.add_argument('-y', action='store_true')
+    movebudget_project_parser = project_subparsers.add_parser('movebudget', parents=[mini_parser])
     movebudget_project_parser.add_argument('--from', dest='_from', required=True) # from is a keyword
     movebudget_project_parser.add_argument('--to', required=True)
     movebudget_project_parser.add_argument('--balance', type=float, default=0.0)
     movebudget_project_parser.add_argument('--credit', type=float, default=0.0)
     movebudget_project_parser.add_argument('--type', required=True, choices=['p2p', 't2p', 'p2t'])
 
-    user_parser = subparsers.add_parser('user')
+    user_parser = subparsers.add_parser('user', parents=[mini_parser])
     user_subparsers = user_parser.add_subparsers()
-    add_user_parser = user_subparsers.add_parser('add')
+    add_user_parser = user_subparsers.add_parser('add', parents=[mini_parser])
     add_user_parser.add_argument('--project', required=True)
     add_user_parser.add_argument('--user', required=True)
-    delete_user_parser = user_subparsers.add_parser('delete')
+    delete_user_parser = user_subparsers.add_parser('delete', parents=[mini_parser])
     delete_user_parser.add_argument('--project', required=True)
     delete_user_parser.add_argument('--user', required=True)
 
-    list_parser = subparsers.add_parser('list')
+    list_parser = subparsers.add_parser('list', parents=[mini_parser])
     list_parser.add_argument('--tenant')
     list_parser.add_argument('--project')
     list_parser.add_argument('--user')
 
     rate_parser = subparsers.add_parser('rate')
     rate_subparsers = rate_parser.add_subparsers()
-    set_rate_parser = rate_subparsers.add_parser('set')
+    set_rate_parser = rate_subparsers.add_parser('set', parents=[mini_parser])
     set_rate_parser.add_argument('--rate', type=float, required=True)
-    get_rate_parser = rate_subparsers.add_parser('get')
+    get_rate_parser = rate_subparsers.add_parser('get', parents=[mini_parser])
 
     transaction_parser = subparsers.add_parser('transaction')
     transaction_subparsers = transaction_parser.add_subparsers()
-    reservebudget_transaction_parser = transaction_subparsers.add_parser('reservebudget')
+    reservebudget_transaction_parser = transaction_subparsers.add_parser('reservebudget', parents=[mini_parser])
     reservebudget_transaction_parser.add_argument('--project', required=True)
     reservebudget_transaction_parser.add_argument('--estimate', type=int, required=True)
-    charge_transaction_parser = transaction_subparsers.add_parser('charge')
+    charge_transaction_parser = transaction_subparsers.add_parser('charge', parents=[mini_parser])
     charge_transaction_parser.add_argument('--project', required=True)
     charge_transaction_parser.add_argument('--user', required=True)
     charge_transaction_parser.add_argument('--estimate', type=int, required=True)
@@ -80,7 +82,7 @@ def getargs():
    
     bill_parser = subparsers.add_parser('bill')
     bill_subparsers = bill_parser.add_subparsers()
-    generate_bill_parser = bill_subparsers.add_parser('generate')
+    generate_bill_parser = bill_subparsers.add_parser('generate', parents=[mini_parser])
     generate_bill_parser.add_argument('--project', required=True)
     generate_bill_parser.add_argument('--time_period', required=True)
 
@@ -92,10 +94,15 @@ def getargs():
     
 # Helpers
 
-# pretty print json
+# # pretty print json
+# def pretty(jjson):
+#     import json
+#     print(json.dumps(jjson, sort_keys=False, indent=4, separators=(',', ': ')))
+
+# alternatively,
 def pretty(jjson):
-    import json
-    print(json.dumps(jjson, sort_keys=False, indent=4, separators=(',', ': ')))
+    from pprint import pprint
+    pprint(jjson)
 
 # case insensitive comparison, result is the expected result (similar to (str1 == str2) == result)
 def cic(str1, str2, result=True):
@@ -219,14 +226,17 @@ def generate_params(fields, values):
 
 # Query functions
 
-def es_query(func, doc_type, body=None, id=None): # all ES function calls go through this function
-    if doc_type == 'log':
-        return func(index="dca", doc_type=doc_type, body=('{' + body + '}'))
+def es_query(func, doc_type, body=None, id=None, size=None): # all ES function calls go through this function
     if id == None:
-        return func(index="dca", doc_type=doc_type, body=('{' + body + '}'), size=10000)
+        if size == None:
+            return func(index="dca", doc_type=doc_type, body=('{' + body + '}'))
+        else:
+            return func(index="dca", doc_type=doc_type, body=('{' + body + '}'), size=size)
     if body == None:
         return func(index="dca", doc_type=doc_type, id=id)
-    return func(index="dca", doc_type=doc_type, id=id, body=('{' + body + '}'))
+    if size == None:
+        return func(index="dca", doc_type=doc_type, id=id, body=('{' + body + '}'))
+    return func(index="dca", doc_type=doc_type, id=id, body=('{' + body + '}'), size=size)
 
 def es_index(doc_type, body, id=None): # adding a document
     return es_query(es.index, doc_type, body, id)
@@ -238,10 +248,10 @@ def es_get(doc_type, id): # getting a known document
     return es_query(es.get, doc_type=doc_type, id=id)
 
 def es_search(doc_type, matches=[], ranges=[]): # searching for results, obtaining all that satisfy query
-    return es_query(es.search, doc_type, multiquery(matches, ranges))
+    return es_query(es.search, doc_type, multiquery(matches, ranges), size=10000)
 
 def es_delete(doc_type, matches=[], ranges=[]): # delete documents satisfying query
-    return es_query(es.delete_by_query, doc_type, multiquery(matches, ranges))
+    return es_query(es.delete_by_query, doc_type, multiquery(matches, ranges), size=10000)
 
 def es_update(doc_type, id, script='', fields=[], values=[]): # update known document
     params = generate_params(fields, values)
@@ -254,7 +264,7 @@ def es_update_by_query(doc_type, matches=[], ranges=[], script='', fields=[], va
     params = generate_params(fields, values)
     body = multiquery(matches, ranges)
     return es_query(es.update_by_query, doc_type, (body + ', ' if body else '') + '"script": {"inline": "'
-            + script + '"' + (', "params": {' + params + '}' if fields else '') + '}')
+            + script + '"' + (', "params": {' + params + '}' if fields else '') + '}', size=10000)
 
 def es_log(category, action, details): # log details of actions
     return es_query(es.index, 'log', '"category": "' + category + '", "action": "' + action + '", "details": "'
@@ -298,17 +308,20 @@ def insufficient_bal_credit(proj, args, tenant_data, projects_data):
 
 # called at the end of an API call's life - should terminate the program and either spit out an error or result
 # an argumentless function call indicates no error
+mini = False
 def status_msg(success=True, error='no error', status={}):
     status['status'] = 'success' if success else 'failed'
     status['error'] = error
-    print(status)
+    print(status) if mini else pretty(status) # pretty print vs mini (normal) print
     return int(not success) # True returns 0, False returns 1
 
 # Main
 
 def main():
     args = getargs()
-    
+    global mini
+    mini = args.mini
+
     # it is guaranteed that there is at least 1 argument
     action = sys.argv[1]   # sys.argv[0] is this file's name
 
