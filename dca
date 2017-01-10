@@ -17,31 +17,40 @@ def getargs():
     subparsers = parser.add_subparsers()
 
     tenant_parser = subparsers.add_parser('tenant')
+    tenant_parser.set_defaults(action='tenant')
     tenant_subparsers = tenant_parser.add_subparsers()
     add_tenant_parser = tenant_subparsers.add_parser('add', parents=[mini_parser])
+    add_tenant_parser.set_defaults(subaction='add')
     add_tenant_parser.add_argument('--tenant', required=True)
     add_tenant_parser.add_argument('--credit', type=float, default=0.0)
     disable_tenant_parser = tenant_subparsers.add_parser('disable', parents=[mini_parser])
+    disable_tenant_parser.set_defaults(subaction='disable')
     disable_tenant_parser.add_argument('--tenant', required=True)
     disable_tenant_parser.add_argument('-y', action='store_true')
     modify_tenant_parser = tenant_subparsers.add_parser('modify', parents=[mini_parser])
+    modify_tenant_parser.set_defaults(subaction='modify')
     modify_tenant_parser.add_argument('--tenant', required=True)
     modify_tenant_parser.add_argument('--credit', type=float, required=True)
     payment_tenant_parser = tenant_subparsers.add_parser('payment', parents=[mini_parser])
+    payment_tenant_parser.set_defaults(subaction='payment')
     payment_tenant_parser.add_argument('--tenant', required=True)
     payment_tenant_parser.add_argument('--payment', type=float, required=True)
 
     project_parser = subparsers.add_parser('project')
+    project_parser.set_defaults(action='project')
     project_subparsers = project_parser.add_subparsers()
     add_project_parser = project_subparsers.add_parser('add', parents=[mini_parser])
+    add_project_parser.set_defaults(subaction='add')
     add_project_parser.add_argument('--tenant', required=True)
     add_project_parser.add_argument('--project', required=True)
     add_project_parser.add_argument('--balance', type=float, default=0.0)
     add_project_parser.add_argument('--credit', type=float, default=0.0)
     disable_project_parser = project_subparsers.add_parser('disable', parents=[mini_parser])
+    disable_project_parser.set_defaults(subaction='disable')
     disable_project_parser.add_argument('--project', required=True)
     disable_project_parser.add_argument('-y', action='store_true')
     movebudget_project_parser = project_subparsers.add_parser('movebudget', parents=[mini_parser])
+    movebudget_project_parser.set_defaults(subaction='movebudget')
     movebudget_project_parser.add_argument('--from', dest='_from', required=True) # from is a keyword
     movebudget_project_parser.add_argument('--to', required=True)
     movebudget_project_parser.add_argument('--balance', type=float, default=0.0)
@@ -49,31 +58,41 @@ def getargs():
     movebudget_project_parser.add_argument('--type', required=True, choices=['p2p', 't2p', 'p2t'])
 
     user_parser = subparsers.add_parser('user', parents=[mini_parser])
+    user_parser.set_defaults(action='user')
     user_subparsers = user_parser.add_subparsers()
     add_user_parser = user_subparsers.add_parser('add', parents=[mini_parser])
+    add_user_parser.set_defaults(subaction='add')
     add_user_parser.add_argument('--project', required=True)
     add_user_parser.add_argument('--user', required=True)
     delete_user_parser = user_subparsers.add_parser('delete', parents=[mini_parser])
+    delete_user_parser.set_defaults(subaction='delete')
     delete_user_parser.add_argument('--project', required=True)
     delete_user_parser.add_argument('--user', required=True)
 
     list_parser = subparsers.add_parser('list', parents=[mini_parser])
+    list_parser.set_defaults(action='list')
     list_parser.add_argument('--tenant')
     list_parser.add_argument('--project')
     list_parser.add_argument('--user')
 
     rate_parser = subparsers.add_parser('rate')
+    rate_parser.set_defaults(action='rate')
     rate_subparsers = rate_parser.add_subparsers()
     set_rate_parser = rate_subparsers.add_parser('set', parents=[mini_parser])
+    set_rate_parser.set_defaults(subaction='set')
     set_rate_parser.add_argument('--rate', type=float, required=True)
     get_rate_parser = rate_subparsers.add_parser('get', parents=[mini_parser])
+    get_rate_parser.set_defaults(subaction='get')
 
     transaction_parser = subparsers.add_parser('transaction')
+    transaction_parser.set_defaults(action='transaction')
     transaction_subparsers = transaction_parser.add_subparsers()
     reservebudget_transaction_parser = transaction_subparsers.add_parser('reservebudget', parents=[mini_parser])
+    reservebudget_transaction_parser.set_defaults(subaction='reservebudget')
     reservebudget_transaction_parser.add_argument('--project', required=True)
     reservebudget_transaction_parser.add_argument('--estimate', type=int, required=True)
     charge_transaction_parser = transaction_subparsers.add_parser('charge', parents=[mini_parser])
+    charge_transaction_parser.set_defaults(subaction='charge')
     charge_transaction_parser.add_argument('--project', required=True)
     charge_transaction_parser.add_argument('--user', required=True)
     charge_transaction_parser.add_argument('--estimate', type=int, required=True)
@@ -81,8 +100,10 @@ def getargs():
     charge_transaction_parser.add_argument('--start', required=True)
    
     bill_parser = subparsers.add_parser('bill')
+    bill_parser.set_defaults(action='bill')
     bill_subparsers = bill_parser.add_subparsers()
     generate_bill_parser = bill_subparsers.add_parser('generate', parents=[mini_parser])
+    generate_bill_parser.set_defaults(subaction='generate')
     generate_bill_parser.add_argument('--project', required=True)
     generate_bill_parser.add_argument('--time_period', required=True)
 
@@ -321,11 +342,8 @@ def main():
     args = getargs()
     global mini
     mini = args.mini
-
-    # it is guaranteed that there is at least 1 argument
-    action = sys.argv[1]   # sys.argv[0] is this file's name
-
-    if action == 'list': # no subaction
+    
+    if args.action == 'list': # no subaction
         tenants = get_data(es_search('tenant', ['"d": false']
                 + (['"name": "' + args.tenant + '"'] if args.tenant else [])
                 + (['"projects": "' + args.project + '"'] if args.project else [])))
@@ -374,11 +392,8 @@ def main():
             return status_msg(False, 'no such user found' + (' for specified tenant' if args.tenant else ''))
         return status_msg(status={'list': tenants})
 
-    else:
-        subaction = sys.argv[2]
-
-    if action == 'tenant':
-        if subaction == 'add':
+    if args.action == 'tenant':
+        if args.subaction == 'add':
             res = es_search('tenant', ['"name": "' + args.tenant + '"'])
             if num_hits(res) > 0:
                 if get_data(res, 'd')[0]: # if the existing tenant is disabled
@@ -390,10 +405,10 @@ def main():
                 return 1
             es_index('tenant', '"name": "' + args.tenant + '", "balance": 0.0, "credit": ' + str(args.credit)
                     + ', "projects": [], "d": false', args.tenant)
-            es_log(action, subaction, 'name: ' + args.tenant + ', credit: ' + str(args.credit))
+            es_log(args.action, args.subaction, 'name: ' + args.tenant + ', credit: ' + str(args.credit))
             return status_msg()
 
-        elif subaction == 'disable':
+        elif args.subaction == 'disable':
             if not args.y:
                 if confirmation():
                     return 1
@@ -410,10 +425,10 @@ def main():
                     return status_msg(False, 'tenant has a project with pending transactions')
                 es_update('project', project, 'ctx._source.d = true')
             es_update('tenant', args.tenant, 'ctx._source.d = true')
-            es_log(action, subaction, 'name: ' + args.tenant)
+            es_log(args.action, args.subaction, 'name: ' + args.tenant)
             return status_msg()
 
-        elif subaction == 'modify':
+        elif args.subaction == 'modify':
             res = es_search('tenant', ['"name": "' + args.tenant + '"'])
             if num_hits(res) == 0:
                 return status_msg(False, 'tenant does not exist')
@@ -427,10 +442,10 @@ def main():
                 return status_msg(False, 'too much credit allocated to projects to reduce tenant credit')
 
             es_update('tenant', args.tenant, 'ctx._source.credit=' + str(args.credit))
-            es_log(action, subaction, 'name: ' + args.tenant + ', credit: ' + str(args.credit))
+            es_log(args.action, args.subaction, 'name: ' + args.tenant + ', credit: ' + str(args.credit))
             return status_msg()
 
-        elif subaction == 'payment':
+        elif args.subaction == 'payment':
             res = es_search('tenant', ['"name": "' + args.tenant + '"'])
             if num_hits(res) == 0:
                 return status_msg(False, 'tenant does not exist')
@@ -442,11 +457,11 @@ def main():
             es_update('tenant', args.tenant, 'ctx._source.balance+=' + str(args.payment))
             es_index('payment', '"tenant": "' + args.tenant + '", "date": "' + tostrdate(now())
                     + '", "payment": ' + str(args.payment))
-            es_log(action, subaction, 'name: ' + args.tenant + ', payment: ' + str(args.payment))
+            es_log(args.action, args.subaction, 'name: ' + args.tenant + ', payment: ' + str(args.payment))
             return status_msg()
 
-    elif action == 'project':
-        if subaction == 'add':
+    elif args.action == 'project':
+        if args.subaction == 'add':
             res = es_search('tenant', ['"name": "' + args.tenant + '"'])
             if num_hits(res) == 0:
                 return status_msg(False, 'tenant does not exist')
@@ -473,11 +488,11 @@ def main():
             es_index('project', '"tenant": "' + args.tenant + '", "project": "' + args.project + '", '
                     +'"balance": ' + str(args.balance) + ', "credit": ' + str(args.credit) + ', '
                     + '"requested": 0.0, "rate": ' + str(rate) + ', "users": [], "d": false', args.project)
-            es_log(action, subaction, 'project: ' + args.project + ', tenant: ' + args.tenant + ', balance: '
-                    + str(args.balance) + ', credit: ' + str(args.credit))
+            es_log(args.action, args.subaction, 'project: ' + args.project + ', tenant: ' + args.tenant
+                    + ', balance: ' + str(args.balance) + ', credit: ' + str(args.credit))
             return status_msg()
 
-        elif subaction == 'disable':
+        elif args.subaction == 'disable':
             if not args.y:
                 if confirmation():
                     return 1
@@ -492,10 +507,10 @@ def main():
                 return status_msg(False, 'project cannot be disabled: pending transaction')
 
             es_update('project', args.project, 'ctx._source.d = true')
-            es_log(action, subaction, 'project: ' + args.project)
+            es_log(args.action, args.subaction, 'project: ' + args.project)
             return status_msg()
 
-        elif subaction == 'movebudget': 
+        elif args.subaction == 'movebudget': 
             # check if either 'from' or 'to' argument does not exist/is disabled
             types = args.type.split('2')
             if types[0] == 'p':
@@ -555,12 +570,12 @@ def main():
                 es_update('project', args.to, 'ctx._source.balance += params.balance; '
                         + 'ctx._source.credit += params.credit', ['balance', 'credit'], [args.balance, args.credit])
 
-            es_log(action, subaction, 'from: ' + args._from + ', to: ' + args.to + ', balance: ' + str(args.balance)
-                    + ', credit: ' + str(args.credit) + ', type: ' + args.type)
+            es_log(args.action, args.subaction, 'from: ' + args._from + ', to: ' + args.to + ', balance: '
+                    + str(args.balance) + ', credit: ' + str(args.credit) + ', type: ' + args.type)
             return status_msg()
 
-    elif action == 'user':
-        if subaction == 'add':
+    elif args.action == 'user':
+        if args.subaction == 'add':
             project_data = invalid_project(args)
             if project_data == 1:
                 return 1
@@ -570,10 +585,10 @@ def main():
                 return status_msg(False, 'invalid user name')
             
             es_update('project', args.project, 'ctx._source.users.add(params.user)', ['user'], [args.user])
-            es_log(action, subaction, 'project: ' + args.project + ', user: ' + args.user)
+            es_log(args.action, args.subaction, 'project: ' + args.project + ', user: ' + args.user)
             return status_msg()
 
-        elif subaction == 'delete':
+        elif args.subaction == 'delete':
             project_data = invalid_project(args)
             if project_data == 1:
                 return 1
@@ -582,25 +597,25 @@ def main():
 
             es_update('project', args.project, 'ctx._source.users.remove(ctx._source.users.indexOf(params.user))',
                     ['user'], [args.user])
-            es_log(action, subaction, 'project: ' + args.project + ', user: ' + args.user)
+            es_log(args.action, args.subaction, 'project: ' + args.project + ', user: ' + args.user)
             return status_msg()
     
-    elif action == 'rate':
-        if subaction == 'set':
+    elif args.action == 'rate':
+        if args.subaction == 'set':
             if not ismoney(args.rate):
                 return status_msg(False, 'invalid rate')
             es_update('rate', 'rate', 'ctx._source.rate=' + str(args.rate))
             es_update_by_query('project', [], [], 'ctx._source.rate=' + str(args.rate))
-            es_log(action, subaction, 'rate: ' + str(args.rate))
+            es_log(args.action, args.subaction, 'rate: ' + str(args.rate))
             return status_msg()
         
-        elif subaction == 'get':
+        elif args.subaction == 'get':
             rate = get_data(es_get('rate', 'rate'), 'rate')
             return status_msg(status={'rate': rate})
 
-    elif action == 'transaction':
+    elif args.action == 'transaction':
         # validate arguments, calculate and update amount requested to the project
-        if subaction == 'reservebudget':
+        if args.subaction == 'reservebudget':
             project_data = invalid_project(args)
             if project_data == 1:
                 return 1
@@ -614,7 +629,7 @@ def main():
             return status_msg()
         
         # validate arguments, calculate project's new bal/cred, calculate tenant's new bal/cred, index transaction
-        elif subaction == 'charge':
+        elif args.subaction == 'charge':
             project_data = invalid_project(args)
             if project_data == 1:
                 return 1
@@ -656,8 +671,8 @@ def main():
                     + str(args.jobtime) + ', "cost": ' + str(cost))
             return status_msg()
 
-    elif action == 'bill':
-        if subaction == 'generate':
+    elif args.action == 'bill':
+        if args.subaction == 'generate':
             # ensure validity of arguments
             res = es_search('project', ['"project": "' + args.project + '"'])
             if num_hits(res) == 0:
