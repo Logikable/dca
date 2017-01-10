@@ -220,11 +220,13 @@ def generate_params(fields, values):
 # Query functions
 
 def es_query(func, doc_type, body=None, id=None): # all ES function calls go through this function
+    if doc_type == 'log':
+        return func(index="dca", doc_type=doc_type, body=('{' + body + '}'))
     if id == None:
         return func(index="dca", doc_type=doc_type, body=('{' + body + '}'), size=10000)
     if body == None:
         return func(index="dca", doc_type=doc_type, id=id)
-    return func(index="dca", doc_type=doc_type, id=id, body=('{' + body + '}'), size=10000)
+    return func(index="dca", doc_type=doc_type, id=id, body=('{' + body + '}'))
 
 def es_index(doc_type, body, id=None): # adding a document
     return es_query(es.index, doc_type, body, id)
