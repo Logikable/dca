@@ -1,7 +1,4 @@
 #!/usr/bin/python3.4
-from elasticsearch import Elasticsearch
-es = Elasticsearch()
-
 from datetime import datetime
 from datetime import timedelta
 
@@ -9,6 +6,13 @@ from datetime import timedelta
 
 import argparse
 import sys
+import dca_cfg
+config = dca_cfg.cfg()
+
+from elasticsearch import Elasticsearch
+from elasticsearch_xpack import XPackClient
+es = Elasticsearch(hosts=config.eshosts, http_auth=(config.username, config.password))
+# XPackClient.infect_client(es) # necessary if using any xpack functions
 
 def getargs():
     parser = argparse.ArgumentParser()
@@ -247,6 +251,7 @@ def generate_params(fields, values):
 
 # Query functions
 
+query_size = 500000
 def es_query(func, doc_type, body=None, id=None, size=None): # all ES function calls go through this function
     if id == None:
         if size == None:
@@ -269,10 +274,10 @@ def es_get(doc_type, id): # getting a known document
     return es_query(es.get, doc_type=doc_type, id=id)
 
 def es_search(doc_type, matches=[], ranges=[]): # searching for results, obtaining all that satisfy query
-    return es_query(es.search, doc_type, multiquery(matches, ranges), size=10000)
+    return es_query(es.search, doc_type, multiquery(matches, ranges), size=query_size)
 
 def es_delete(doc_type, matches=[], ranges=[]): # delete documents satisfying query
-    return es_query(es.delete_by_query, doc_type, multiquery(matches, ranges), size=10000)
+    return es_query(es.delete_by_query, doc_type, multiquery(matches, ranges), size=query_size)
 
 def es_update(doc_type, id, script='', fields=[], values=[]): # update known document
     params = generate_params(fields, values)
@@ -285,7 +290,7 @@ def es_update_by_query(doc_type, matches=[], ranges=[], script='', fields=[], va
     params = generate_params(fields, values)
     body = multiquery(matches, ranges)
     return es_query(es.update_by_query, doc_type, (body + ', ' if body else '') + '"script": {"inline": "'
-            + script + '"' + (', "params": {' + params + '}' if fields else '') + '}', size=10000)
+            + script + '"' + (', "params": {' + params + '}' if fields else '') + '}', size=query_size)
 
 def es_log(category, action, details): # log details of actions
     return es_query(es.index, 'log', '"category": "' + category + '", "action": "' + action + '", "details": "'
@@ -390,7 +395,7 @@ def main():
             tenant['projects'] = projects
         if args.user and not found_user:
             return status_msg(False, 'no such user found' + (' for specified tenant' if args.tenant else ''))
-        return status_msg(status={'list': tenants})
+        return status_msg(status={'tenants': tenants})
 
     if args.action == 'tenant':
         if args.subaction == 'add':

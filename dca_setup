@@ -1,6 +1,9 @@
 #!/usr/bin/python3.4
+import dca_cfg
+config = dca_cfg.cfg()
+
 from elasticsearch import Elasticsearch
-es = Elasticsearch()
+es = Elasticsearch(hosts=config.eshosts, http_auth=(config.username, config.password))
 
 body = ('{'
     '"mappings": {'
@@ -59,4 +62,5 @@ body = ('{'
 '}')
 
 es.indices.create(index='dca', body=body)
+es.indices.put_settings(body='{"index": {"max_result_window": 500000}}')
 es.index(index='dca', doc_type='rate', id='rate', body='{"rate": 0.0}')
