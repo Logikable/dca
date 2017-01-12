@@ -4,7 +4,7 @@
 
 dca is an accounting RESTful API that keeps track of job processing hours used by users and charges the respective tenant using Elasticsearch, a NoSQL document-based database. It is meant to be used in conjunction with a backend transactions system and optionally a web-based interface for viewing transactions and bills. dca can be interacted with through commands and outputs a json string containing the results.
    
-Its data follows the hierarchy of having individual tenants that oversee a number of projects, each of which has a list of users that work on said project. Each tenant has their own budget which can then be distributed amongst their projects to be used by the users. dca has the ability to track the usage of budget on a per-user basis, and create a bill for the administrator that overviews how much each user spent each day. On top of having a basic budget system, dca also has a credit system that allows an administrator to dispense credit to tenants who may have underused their budget one month and require more the next. dca is quite flexible and is simple to set up.
+Its data follows the hierarchy of having individual tenants that oversee a number of projects, each of which has a list of users that work on said project. Each tenant has their own budget which can then be distributed amongst their projects to be used by the users. dca has the ability to track the usage of budget on a per-user basis, and create a bill for the administrator that overviews how much each user spent each day. On top of having a basic budget system, dca also has a credit system that allows an administrator to dispense credit to tenants who may have underused their budget one month and require more the next. To maintain security, dca has integrated Elasticsearch’s privilege and role system into its own. dca is quite flexible and is simple to set up.
 
 ## Setup
 
@@ -207,3 +207,7 @@ Below you can find their fields and field types:
   "date": date
 }
 ```
+
+## Future Plans
+
+As is the case with a lot of software, dca has room for improvement. In the future, dca will see the full integration of an identification-permissions system, with infrastructure for a hierarchy of roles that can only change those below it. We hope to provide a layer of abstraction for the user to simplify the process of creating roles, as Elasticsearch’s current system is improperly documented and heavyweight.
