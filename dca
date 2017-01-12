@@ -10,7 +10,7 @@ import dca_cfg
 config = dca_cfg.cfg()
 
 from elasticsearch import Elasticsearch
-from elasticsearch_xpack import XPackClient
+# from elasticsearch_xpack import XPackClient
 es = Elasticsearch(hosts=config.eshosts, http_auth=(config.username, config.password))
 # XPackClient.infect_client(es) # necessary if using any xpack functions
 
@@ -252,44 +252,44 @@ def generate_params(fields, values):
 # Query functions
 
 query_size = 500000
-def es_query(func, doc_type, body=None, id=None, size=None): # all ES function calls go through this function
+def es_query(func, index, body=None, id=None, size=None): # all ES function calls go through this function
     if id == None:
         if size == None:
-            return func(index="dca", doc_type=doc_type, body=('{' + body + '}'))
+            return func(index=index, doc_type=index, body=('{' + body + '}'))
         else:
-            return func(index="dca", doc_type=doc_type, body=('{' + body + '}'), size=size)
+            return func(index=index, doc_type=index, body=('{' + body + '}'), size=size)
     if body == None:
-        return func(index="dca", doc_type=doc_type, id=id)
+        return func(index=index, doc_type=index, id=id)
     if size == None:
-        return func(index="dca", doc_type=doc_type, id=id, body=('{' + body + '}'))
-    return func(index="dca", doc_type=doc_type, id=id, body=('{' + body + '}'), size=size)
+        return func(index=index, doc_type=index, id=id, body=('{' + body + '}'))
+    return func(index=index, doc_type=index, id=id, body=('{' + body + '}'), size=size)
 
-def es_index(doc_type, body, id=None): # adding a document
-    return es_query(es.index, doc_type, body, id)
+def es_index(index, body, id=None): # adding a document
+    return es_query(es.index, index, body, id)
 
-def es_count(doc_type, matches=[], ranges=[]): # counting num results
-    return es_query(es.count, doc_type, multiquery(matches, ranges))
+def es_count(index, matches=[], ranges=[]): # counting num results
+    return es_query(es.count, index, multiquery(matches, ranges))
 
-def es_get(doc_type, id): # getting a known document
-    return es_query(es.get, doc_type=doc_type, id=id)
+def es_get(index, id): # getting a known document
+    return es_query(es.get, index, id=id)
 
-def es_search(doc_type, matches=[], ranges=[]): # searching for results, obtaining all that satisfy query
-    return es_query(es.search, doc_type, multiquery(matches, ranges), size=query_size)
+def es_search(index, matches=[], ranges=[]): # searching for results, obtaining all that satisfy query
+    return es_query(es.search, index, multiquery(matches, ranges), size=query_size)
 
-def es_delete(doc_type, matches=[], ranges=[]): # delete documents satisfying query
-    return es_query(es.delete_by_query, doc_type, multiquery(matches, ranges), size=query_size)
+def es_delete(index, matches=[], ranges=[]): # delete documents satisfying query
+    return es_query(es.delete_by_query, index, multiquery(matches, ranges), size=query_size)
 
-def es_update(doc_type, id, script='', fields=[], values=[]): # update known document
+def es_update(index, id, script='', fields=[], values=[]): # update known document
     params = generate_params(fields, values)
-    return es_query(es.update, doc_type, '"script": {"inline": "' + script + '"' + (', "params": {' + params
+    return es_query(es.update, index, '"script": {"inline": "' + script + '"' + (', "params": {' + params
             + '}' if fields else '') + '}', id=id)
 
 # update all documents that satisfy a query
 # script should already contain data about which values should be changed to what params
-def es_update_by_query(doc_type, matches=[], ranges=[], script='', fields=[], values=[]):
+def es_update_by_query(index, matches=[], ranges=[], script='', fields=[], values=[]):
     params = generate_params(fields, values)
     body = multiquery(matches, ranges)
-    return es_query(es.update_by_query, doc_type, (body + ', ' if body else '') + '"script": {"inline": "'
+    return es_query(es.update_by_query, index, (body + ', ' if body else '') + '"script": {"inline": "'
             + script + '"' + (', "params": {' + params + '}' if fields else '') + '}', size=query_size)
 
 def es_log(category, action, details): # log details of actions
