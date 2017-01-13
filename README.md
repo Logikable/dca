@@ -79,6 +79,7 @@ There are restrictions and guidelines to what the argument values can be. All re
 * Deleting tenants and projects does not actually delete them. It merely disables them (which requires a confirmation). This is so that bills can still be generated 
 * Balance, credit, and payments amounts must be a non-negative numeric value.
 * The type argument under project movebudget determines whether the from and to destinations are projects (p) or tenants (t).
+* The `rate` is measured in dollars per hour.
 * Transaction `estimate` and `jobtime` are measured in seconds, and must be an integer value.
 * The start time must be in the format YYYY-MM-DD HH:mm:ss, or a Unix epoch value.
 * `time_period` (if a default one is not chosen) must be two dates in the format YYYY-MM-DD.
