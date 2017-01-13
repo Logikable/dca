@@ -204,6 +204,7 @@ def confirmation(): # used when disabling tenant/project, double checks that the
 
 now = lambda: datetime.now().replace(microsecond=0) # returns current time
 rnd = lambda n: round(n, 2) # short hand for rounding to 2 decimals
+money_fmt = lambda n: '{0:.2f}'.format(n)
 
 # Query functions
 
@@ -753,8 +754,9 @@ def generate_bill(args):
     # aggregate data
     bill = {'tenant': project_data['tenant'], 'project': args.project,
             'from': tostrdate(start, bill_datefmt), 'to': tostrdate(end, bill_datefmt), 'bill': bill,
-            'total_hours': rnd(total_hours), 'total_cost': rnd(total_cost), 'bbalance': rnd(starting_bal),
-            'payments': rnd(range_payment_total), 'ebalance': rnd(ending_bal)}
+            'total_hours': rnd(total_hours), 'total_cost': money_fmt(rnd(total_cost)),
+            'bbalance': money_fmt(rnd(starting_bal)), 'payments': money_fmt(rnd(range_payment_total)),
+            'ebalance': money_fmt(rnd(ending_bal))}
 
     return status_msg(status={'bill': bill})
 
