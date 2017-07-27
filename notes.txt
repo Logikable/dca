@@ -1,0 +1,42 @@
+Database dca
+tenant
+- name VARCHAR(32)
+- balance FLOAT
+- credit FLOAT
+- projects VARCHAR(4096)
+- d BOOLEAN
+
+project
+- tenant VARCHAR(32)
+- project VARCHAR(32)
+- balance FLOAT
+- credit FLOAT
+- requested FLOAT
+- rate FLOAT
+- users VARCHAR(4096)
+- d BOOLEAN
+
+transaction
+- project VARCHAR(32)
+- user VARCHAR(32)
+- start DATETIME
+- end DATETIME
+- runtime INT
+- cost FLOAT
+
+payment
+- tenant VARCHAR(32)
+- date DATETIME
+- payment FLOAT
+
+rate
+- rate FLOAT
+
+log
+- category VARCHAR(32)
+- action VARCHAR(32)
+- details VARCHAR(4096)
+- date DATETIME
+
+Add Tenant
+SELECT * FROM tenant WHERE name = 'name';
