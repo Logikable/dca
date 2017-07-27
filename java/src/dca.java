@@ -480,7 +480,9 @@ class MovebudgetProject extends Command {
         String to = ns.getString("to");
         float balance = ns.getFloat("balance");
         float credit = ns.getFloat("credit");
-        
+
+        System.out.println(types[0] + " " + types[1]);
+
         ResultSet fromRS, toRS;
         if (types[0].equals("p")) {
             fromRS = select("project", "project='" + from + "'");
