@@ -315,13 +315,13 @@ class DisableTenant extends Command {
             return new StatusMessage("tenant is already disabled");
         }
 
-        ArrayList<String> projects = fromCSV(rs.getString("projects"));
-        for (String project : projects) {
-            rs = select("project", "project='" + project + "'");
-            if (rs.next() && rs.getFloat("requested") != 0) {
+        ResultSet projectRS = select("project", "tenant='" + tenant + "'");
+        while (projectRS.next()) {
+            if (projectRS.getFloat("requested") != 0) {
                 return new StatusMessage("tenant has a project with pending transactions");
             }
         }
+
         update("project", "d=true", "tenant='" + tenant + "'");
         update("tenant", "d=true", "name='" + tenant + "'");
         log("tenant", "disable", "name: " + tenant);
@@ -480,8 +480,6 @@ class MovebudgetProject extends Command {
         String to = ns.getString("to");
         float balance = ns.getFloat("balance");
         float credit = ns.getFloat("credit");
-
-        System.out.println(types[0] + " " + types[1]);
 
         ResultSet fromRS, toRS;
         if (types[0].equals("p")) {
