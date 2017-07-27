@@ -38,6 +38,11 @@ log
 - details VARCHAR(4096)
 - date DATETIME
 
+t1/t2 valid
+t3/t4 disabled
+p11/p12/p21
+p13/p14
+
 unit testing
 
 create tenant
@@ -45,7 +50,7 @@ create tenant
 create tenant with default credit
 ./dca tenant add --tenant t2 --credit 10
 create tenant with invalid name
-./dca tenant add --tenant !1!!!
+./dca tenant add --tenant ^
 ./dca tenant add --tenant 123456789012345678901234567890123
 create existing tenant
 ./dca tenant add --tenant t1
@@ -60,7 +65,7 @@ creating disabled tenant
 ./dca tenant add --tenant t3
 disable tenant with -y
 ./dca tenant add --tenant t4
-./dca tenant disable --tenant t4
+./dca tenant disable --tenant t4 -y
 disable already disabled tenant
 ./dca tenant disable --tenant t3
 disable non existing tenant
@@ -98,7 +103,7 @@ existing project
 ./dca project add --tenant t1 --project p11
 ./dca project add --tenant t2 --project p11
 invalid name
-./dca project add --tenant t1 --project !!!
+./dca project add --tenant t1 --project ^
 ./dca project add --tenant t1 --project 123456789012345678901234567890123
 invalid bal/credit amount
 ./dca project add --tenant t1 --project p13 --balance a
@@ -112,12 +117,92 @@ too much credit allocated to projects; can't modify tenant
 ./dca tenant modify --tenant t1 --credit 0
 
 disable project
-./dca project disable --project p11
+./dca project add --tenant t1 --project p13
+./dca project disable --project p13
 creating disabled project
-./dca project add --tenant t1 --project p11
-./dca project add --tenant t2 --project p12
+./dca project add --tenant t1 --project p13
 disable disabled project
-./dca project disable --project p11
+./dca project disable --project p13
+disable project with -y
+./dca project add --tenant t1 --project p14
+./dca project disable --project p14 -y
+disable invalid project
+./dca project disable --project p100
 
+invalid from-project
+./dca project movebudget --from p100 --to p11 --type p2p
+./dca project movebudget --from p13 --to p11 --type p2p
+invalid from-tenant
+./dca project movebudget --from t100 --to p11 --type t2p
+./dca project movebudget --from t3 --to p11 --type t2p
+invalid to-project
+./dca project movebudget --from t1 --to p100 --type t2p
+./dca project movebudget --from t1 --to p13 --type t2p
+invalid to-tenant
+./dca project movebudget --from p11 --to t100 --type p2t
+./dca project movebudget --from p11 --to t3 --type p2t
+project not belonging to tenant
+./dca project movebudget --from t2 --to p11 --type t2p
+./dca project movebudget --from p11 --to t2 --type p2t
+projects not part of same tenant
+./dca project add --tenant t2 --project p21
+./dca project movebudget --from p11 --to p21 --type p2p
+insufficient bal/credit from-tenant
+./dca project movebudget --from t1 --to p11 --type t2p --balance 100
+./dca project movebudget --from t1 --to p11 --type t2p --credit 10
+^^^^^^^^
+DO MORE TESTING HERE!!!!
+
+./dca user add --project p11 --user u1
+user already exists
+./dca user add --project p11 --user u1
+project doesn't exist
+./dca user add --project p100 --user u1
+project disabled
+./dca user add --project p13 --user u1
+invalid name
+./dca user add --project p11 --user u123456789012345678901234567890123
+./dca user add --project p11 --user ^
+
+deletion
+./dca user delete --project p11 --user u1
+user doesnt exist
+./dca user delete --project p11 --user u1
+project doesn't exist
+./dca user delete --project p100 --user u1
+project disabled
+./dca user delete --project p13 --user u1
+
+./dca user add --project p11 --user u1
+./dca user add --project p21 --user u1
+./dca list
+./dca list --tenant t1
+./dca list --project p11
+./dca list --user u1
+./dca list --tenant t1 --project p11
+./dca list --tenant t1 --user u1
+./dca list --project p11 --user u1
+./dca list --tenant t1 --project p11 --user u1
+
+errors/no result
+./dca list --tenant t10
+./dca list --project p100
+./dca list --user u10
+./dca list --tenant t1 --project p100
+./dca list --tenant t1 --project p21
+./dca list --tenant t10 --project p11
+./dca list --tenant t1 --user u10
+./dca list --tenant t10 --user u1
+./dca list --project p100 --user u1
+./dca list --project p11 --user u10
+./dca list --tenant t1 --project p11 --user u2
+./dca list --tenant t1 --project p100 --user u1
+./dca list --tenant t10 --project p11 --user u1
+./dca list --tenant t1 --project p21 --user u1
+./dca list --tenant t1 --project p11 --user u2
+./dca list --tenant t2 --project p11 --user u1
+
+./dca transaction reservebudget --project p1 --estimate 10
+./dca transaction 
 
 tenant has a project with pending transactions; can't disable tenant

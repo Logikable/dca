@@ -530,7 +530,7 @@ class MovebudgetProject extends Command {
         // if from tenant, check that this tenant has enough bal/cred
         if (types[0].equals("t")) {
             StatusMessage sm = sufficientBalCredit(from, fromRS.getFloat("balance"),
-                    fromRS.getFloat("credit"), 0, 0);
+                    fromRS.getFloat("credit"), balance, credit);
             if (sm != null) {
                 return sm;
             }
@@ -549,8 +549,8 @@ class MovebudgetProject extends Command {
 
         // if there have been no errors, update only transfer is to a project (tenant doesn't need to be updated)
         if (types[1].equals("p")) {
-            float toBalance = fromRS.getFloat("balance");
-            float toCredit = fromRS.getFloat("credit");
+            float toBalance = toRS.getFloat("balance");
+            float toCredit = toRS.getFloat("credit");
             update("project", "balance=" + (toBalance + balance) + ",credit= " + (toCredit + credit),
                     "project='" + to + "'");
         }
