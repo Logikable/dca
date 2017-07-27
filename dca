@@ -391,7 +391,7 @@ def lst(args):
         tenant['projects'] = projects
     if args.user and not found_user:
         return status_msg(False, 'no such user found' + (' for specified tenant' if args.tenant else ''))
-    return status_msg(status={'tenants': tenants})
+    return status_msg(status={'list': tenants})
 
 def add_tenant(args):
     res = es_search('tenant', ['"name": "' + args.tenant + '"'])
