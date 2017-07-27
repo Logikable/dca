@@ -230,6 +230,20 @@ abstract class Command {
     }
 }
 
+class WipeSQL extends Command {
+    @Override
+    StatusMessage execute(Namespace ns, Connection c) throws SQLException {
+        Statement s = c.createStatement();
+        s.execute("DROP TABLE tenant");
+        s.execute("DROP TABLE project");
+        s.execute("DROP TABLE payment");
+        s.execute("DROP TABLE transaction");
+        s.execute("DROP TABLE log");
+        s.execute("DROP TABLE rate");
+        return new StatusMessage();
+    }
+}
+
 class SetupSQL extends Command {
     @Override
     StatusMessage execute(Namespace ns, Connection c) throws SQLException {
@@ -955,6 +969,12 @@ public class dca {
         ArgumentParser parser = ArgumentParsers.newArgumentParser("dca")
                 .defaultHelp(true);
         Subparsers subparsers = parser.addSubparsers();
+
+        /* WIPE PARSER */
+        Subparser wipeParser = subparsers.addParser("wipe").help("Wipe SQL tables.");
+        wipeParser.setDefault("cmd", new WipeSQL());
+        wipeParser.addArgument("-m", "--mini").help("Mini-print (no newlines or tabs) output.")
+                .action(storeTrue());
 
         /* SETUP PARSER */
         Subparser setupParser = subparsers.addParser("setup").help("Set up dca - creates MySQL tables.");
