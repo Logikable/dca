@@ -249,6 +249,7 @@ class SetupSQL extends Command {
         create("payment", "tenant VARCHAR(32),date DATETIME,payment FLOAT");
         create("rate", "rate FLOAT");
         create("log", "category VARCHAR(32),action VARCHAR(32),details VARCHAR(4096),date DATETIME");
+        insert("rate", "rate", "0");
 
         return new StatusMessage();
     }
@@ -331,7 +332,7 @@ class ModifyTenant extends Command {
         if (!isMoney(credit)) {
             return new StatusMessage("invalid credit amount");
         }
-        rs = select("project", "tenant='" + tenant + "'");
+        rs = select("project", "d=false AND tenant='" + tenant + "'");
         float totalCredit = 0;
         while (rs.next()) {
             totalCredit += rs.getFloat("credit");
@@ -514,8 +515,8 @@ class MovebudgetProject extends Command {
 
         // if from tenant, check that this tenant has enough bal/cred
         if (types[0].equals("t")) {
-            StatusMessage sm = sufficientBalCredit(to, toRS.getFloat("balance"),
-                    toRS.getFloat("credit"), 0, 0);
+            StatusMessage sm = sufficientBalCredit(from, fromRS.getFloat("balance"),
+                    fromRS.getFloat("credit"), 0, 0);
             if (sm != null) {
                 return sm;
             }

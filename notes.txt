@@ -38,5 +38,86 @@ log
 - details VARCHAR(4096)
 - date DATETIME
 
-Add Tenant
-SELECT * FROM tenant WHERE name = 'name';
+unit testing
+
+create tenant
+./dca tenant add --tenant t1
+create tenant with default credit
+./dca tenant add --tenant t2 --credit 10
+create tenant with invalid name
+./dca tenant add --tenant !1!!!
+./dca tenant add --tenant 123456789012345678901234567890123
+create existing tenant
+./dca tenant add --tenant t1
+invalid credit amount
+./dca tenant add --tenant t100 --credit a
+./dca tenant add --tenant t100 --credit -1
+
+disable tenant
+./dca tenant add --tenant t3
+./dca tenant disable --tenant t3
+creating disabled tenant
+./dca tenant add --tenant t3
+disable tenant with -y
+./dca tenant add --tenant t4
+./dca tenant disable --tenant t4
+disable already disabled tenant
+./dca tenant disable --tenant t3
+disable non existing tenant
+./dca tenant disable --tenant t100
+
+modify tenant
+./dca tenant modify --tenant t1 --credit 10
+modify disabled tenant
+./dca tenant modify --tenant t3 --credit 10
+modify non existing tenant
+./dca tenant modify --tenant t100 --credit 10
+invalid credit amount
+./dca tenant modify --tenant t1 --credit a
+./dca tenant modify --tenant t1 --credit -1
+
+tenant payment
+./dca tenant payment --tenant t1 --payment 10
+invalid tenant
+./dca tenant payment --tenant t100 --payment 10
+disabled tenant
+./dca tenant payment --tenant t3 --payment 10
+invalid payment
+./dca tenant payment --tenant t1 --payment a
+./dca tenant payment --tenant t1 --payment -1
+
+add project
+./dca project add --tenant t1 --project p11
+add project with balance and credit
+./dca project add --tenant t1 --project p12 --balance 5 --credit 5 
+invalid tenant
+./dca project add --tenant t100 --project p1
+disabled tenant
+./dca project add --tenant t3 --project p1
+existing project
+./dca project add --tenant t1 --project p11
+./dca project add --tenant t2 --project p11
+invalid name
+./dca project add --tenant t1 --project !!!
+./dca project add --tenant t1 --project 123456789012345678901234567890123
+invalid bal/credit amount
+./dca project add --tenant t1 --project p13 --balance a
+./dca project add --tenant t1 --project p13 --credit a
+./dca project add --tenant t1 --project p13 --balance -1
+./dca project add --tenant t1 --project p13 --credit -1
+insufficent bal/credit
+./dca project add --tenant t1 --project p13 --balance 100
+./dca project add --tenant t1 --project p13 --credit 100
+too much credit allocated to projects; can't modify tenant
+./dca tenant modify --tenant t1 --credit 0
+
+disable project
+./dca project disable --project p11
+creating disabled project
+./dca project add --tenant t1 --project p11
+./dca project add --tenant t2 --project p12
+disable disabled project
+./dca project disable --project p11
+
+
+tenant has a project with pending transactions; can't disable tenant
