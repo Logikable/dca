@@ -1,4 +1,4 @@
-import com.sun.org.glassfish.external.statistics.Stats;
+import com.sun.xml.internal.ws.api.message.Packet;
 import net.sourceforge.argparse4j.ArgumentParsers;
 import net.sourceforge.argparse4j.inf.ArgumentParser;
 import net.sourceforge.argparse4j.inf.Namespace;
@@ -15,6 +15,7 @@ import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.StringWriter;
+import java.sql.Array;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.ResultSet;
@@ -74,6 +75,32 @@ abstract class Command {
     DateTimeFormatter format = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
     DateTimeFormatter billFormat = DateTimeFormatter.ofPattern("yyyy-MM-dd");
     Connection c;
+
+    StatusMessage insufficientPermissions = new StatusMessage("insufficient permissions");
+    // special verify for user commands - admins can obviously run them
+    boolean verify(ResultSet projectRS) throws SQLException {
+        String username = System.getProperty("user.name");
+        ArrayList<String> users = fromCSV(projectRS.getString("users"));
+        if (caseInsensitiveContains(users, username)) {
+            return true;
+        }
+        return verify(false, true);
+    }
+    // all commands are admin commands EXCEPT dca role add/delete admin
+    boolean verify(boolean tenantadminCommand, boolean adminCommand) throws SQLException {
+        // incredibly insecure way of obtaining linux login username - there are many ways to circumvent this method
+        String username = System.getProperty("user.name");
+
+        if (!username.equalsIgnoreCase("root")) {
+            ResultSet rs = select("role", "name='" + username + "'");
+            if (!rs.next()
+                    || !(rs.getBoolean("tenantadmin") && tenantadminCommand
+                    || rs.getBoolean("admin") && adminCommand)) {
+                return false;
+            }
+        }
+        return true;
+    }
     abstract StatusMessage execute(Namespace ns, Connection c) throws SQLException;
 
     /***** UTILITY *****/
@@ -106,7 +133,6 @@ abstract class Command {
             LocalDate.parse(s, billFormat);
             return true;
         } catch (DateTimeParseException e) {
-            e.printStackTrace();
             return false;
         }
     }
@@ -118,7 +144,6 @@ abstract class Command {
             LocalDateTime.parse(s, format);
             return true;
         } catch (DateTimeParseException e) {
-            e.printStackTrace();
             return false;
         }
     }
@@ -247,6 +272,11 @@ abstract class Command {
 class WipeSQL extends Command {
     @Override
     StatusMessage execute(Namespace ns, Connection c) throws SQLException {
+        this.c = c;
+        if (!verify(false, false)) {
+            return insufficientPermissions;
+        }
+
         Statement s = c.createStatement();
         s.execute("DROP TABLE tenant");
         s.execute("DROP TABLE project");
@@ -254,6 +284,7 @@ class WipeSQL extends Command {
         s.execute("DROP TABLE transaction");
         s.execute("DROP TABLE log");
         s.execute("DROP TABLE rate");
+        s.execute("DROP TABLE role");
         return new StatusMessage();
     }
 }
@@ -262,6 +293,9 @@ class SetupSQL extends Command {
     @Override
     StatusMessage execute(Namespace ns, Connection c) throws SQLException {
         this.c = c;
+        if (!verify(false, false)) {
+            return insufficientPermissions;
+        }
 
         Statement s = c.createStatement();
         ResultSet rs = s.executeQuery("SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'dca';");
@@ -277,6 +311,7 @@ class SetupSQL extends Command {
         create("payment", "tenant VARCHAR(32),date DATETIME,payment FLOAT");
         create("rate", "rate FLOAT");
         create("log", "category VARCHAR(32),action VARCHAR(32),details VARCHAR(4096),date DATETIME");
+        create("role", "name VARCHAR(32),tenantadmin BOOLEAN,admin BOOLEAN");
         insert("rate", "rate", "0");
 
         return new StatusMessage();
@@ -287,6 +322,9 @@ class AddTenant extends Command {
     @Override
     StatusMessage execute(Namespace ns, Connection c) throws SQLException {
         this.c = c;
+        if (!verify(false, true)) {
+            return insufficientPermissions;
+        }
 
         String tenant = ns.getString("tenant");
         ResultSet rs = select("tenant", "name='" + tenant + "'");
@@ -315,6 +353,9 @@ class DisableTenant extends Command {
     @Override
     StatusMessage execute(Namespace ns, Connection c) throws SQLException {
         this.c = c;
+        if (!verify(false, true)) {
+            return insufficientPermissions;
+        }
 
         if (!ns.getBoolean("y") && !confirmation()) {
             return new StatusMessage("failed to disable: no confirmation");
@@ -347,6 +388,9 @@ class ModifyTenant extends Command {
     @Override
     StatusMessage execute(Namespace ns, Connection c) throws SQLException {
         this.c = c;
+        if (!verify(false, true)) {
+            return insufficientPermissions;
+        }
 
         String tenant = ns.getString("tenant");
         ResultSet rs = select("tenant", "name='" + tenant + "'");
@@ -379,6 +423,9 @@ class PaymentTenant extends Command {
     @Override
     StatusMessage execute(Namespace ns, Connection c) throws SQLException {
         this.c = c;
+        if (!verify(false, true)) {
+            return insufficientPermissions;
+        }
 
         String tenant = ns.getString("tenant");
         ResultSet rs = select("tenant", "name='" + tenant + "'");
@@ -406,6 +453,9 @@ class AddProject extends Command {
     @Override
     StatusMessage execute(Namespace ns, Connection c) throws SQLException {
         this.c = c;
+        if (!verify(true, true)) {
+            return insufficientPermissions;
+        }
 
         String tenant = ns.getString("tenant");
         ResultSet tenantRS = select("tenant", "name='" + tenant + "'");
@@ -459,6 +509,9 @@ class DisableProject extends Command {
     @Override
     StatusMessage execute(Namespace ns, Connection c) throws SQLException {
         this.c = c;
+        if (!verify(true, true)) {
+            return insufficientPermissions;
+        }
 
         if (!ns.getBoolean("y") && !confirmation()) {
             return new StatusMessage("failed to disable: no confirmation");
@@ -486,6 +539,9 @@ class MovebudgetProject extends Command {
     @Override
     StatusMessage execute(Namespace ns, Connection c) throws SQLException {
         this.c = c;
+        if (!verify(true, true)) {
+            return insufficientPermissions;
+        }
 
         String type = ns.getString("type");
         String[] types = type.split("2");
@@ -579,6 +635,9 @@ class AddUser extends Command {
     @Override
     StatusMessage execute(Namespace ns, Connection c) throws SQLException {
         this.c = c;
+        if (!verify(true, true)) {
+            return insufficientPermissions;
+        }
 
         String project = ns.getString("project");
         ResultSet rs = select("project", "project='" + project + "'");
@@ -609,6 +668,9 @@ class DeleteUser extends Command {
     @Override
     StatusMessage execute(Namespace ns, Connection c) throws SQLException {
         this.c = c;
+        if (!verify(true, true)) {
+            return insufficientPermissions;
+        }
 
         String project = ns.getString("project");
         ResultSet rs = select("project", "project='" + project + "'");
@@ -636,6 +698,9 @@ class SetRate extends Command {
     @Override
     StatusMessage execute(Namespace ns, Connection c) throws SQLException {
         this.c = c;
+        if (!verify(false, true)) {
+            return insufficientPermissions;
+        }
 
         float rate = ns.getFloat("rate");
         if (!isMoney(rate)) {
@@ -653,6 +718,9 @@ class GetRate extends Command {
     @Override
     StatusMessage execute(Namespace ns, Connection c) throws SQLException {
         this.c = c;
+        if (!verify(false, true)) {
+            return insufficientPermissions;
+        }
 
         ResultSet rs = select("rate");
         if (!rs.next()) {
@@ -667,6 +735,9 @@ class ListCommand extends Command {
     @Override
     StatusMessage execute(Namespace ns, Connection c) throws SQLException {
         this.c = c;
+        if (!verify(true, true)) {
+            return insufficientPermissions;
+        }
 
         // these strings will be null if argument is unspecified
         String tenant = ns.getString("tenant");
@@ -756,6 +827,10 @@ class ReservebudgetTransaction extends Command {
         if (rs.getBoolean("d")) {
             return new StatusMessage("project is disabled");
         }
+        if (!verify(rs)) {
+            return insufficientPermissions;
+        }
+
         int estimate = ns.getInt("estimate");
         if (!isTime(estimate)) {
             return new StatusMessage("invalid estimate");
@@ -784,6 +859,9 @@ class ChargeTransaction extends Command {
         }
         if (rs.getBoolean("d")) {
             return new StatusMessage("project is disabled");
+        }
+        if (!verify(rs)) {
+            return insufficientPermissions;
         }
 
         int estimate = ns.getInt("estimate");
@@ -862,6 +940,9 @@ class GenerateBill extends Command {
     @Override
     StatusMessage execute(Namespace ns, Connection c) throws SQLException {
         this.c = c;
+        if (!verify(true, true)) {
+            return insufficientPermissions;
+        }
 
         String project = ns.getString("project");
         ResultSet projectRS = select("project", "project='" + project + "'");
@@ -984,6 +1065,97 @@ class GenerateBill extends Command {
     }
 }
 
+class AddAdmin extends Command {
+    @Override
+    StatusMessage execute(Namespace ns, Connection c) throws SQLException {
+        this.c = c;
+        if (!verify(false, false)) {
+            return insufficientPermissions;
+        }
+
+        String user = ns.getString("user");
+        ResultSet rs = select("role", "name='" + user + "'");
+        if (!rs.next()) {
+            insert("role", "name,tenantadmin,admin", user + ",false,true");
+        } else if (rs.getBoolean("admin")) {
+            return new StatusMessage("user is already an admin");
+        } else {
+            update("role", "admin=true", "name='" + user + "'");
+        }
+        log("role", "add", "role: admin, name: " + user);
+        return new StatusMessage();
+    }
+}
+
+class AddTenantadmin extends Command {
+    @Override
+    StatusMessage execute(Namespace ns, Connection c) throws SQLException {
+        this.c = c;
+        if (!verify(false, true)) {
+            return insufficientPermissions;
+        }
+
+        String user = ns.getString("user");
+        ResultSet rs = select("role", "name='" + user + "'");
+        if (!rs.next()) {
+            insert("role", "name,tenantadmin,admin", user + ",true,false");
+        } else if (rs.getBoolean("admin")) {
+            return new StatusMessage("user is already a tenantadmin");
+        } else {
+            update("role", "tenantadmin=true", "name='" + user + "'");
+        }
+        log("role", "add", "role: tenantadmin, name: " + user);
+        return new StatusMessage();
+    }
+}
+
+class DeleteAdmin extends Command {
+    @Override
+    StatusMessage execute(Namespace ns, Connection c) throws SQLException {
+        this.c = c;
+        if (!verify(false, false)) {
+            return insufficientPermissions;
+        }
+
+        String user = ns.getString("user");
+        ResultSet rs = select("role", "name='" + user + "'");
+        if (!rs.next() || !rs.getBoolean("admin")) {
+            return new StatusMessage("user is not an admin");
+        }
+        update("role", "admin=false", "name='" + user + "'");
+        log("role", "delete", "role: admin, name: " + user);
+        return new StatusMessage();
+    }
+}
+
+class DeleteTenantadmin extends Command {
+    @Override
+    StatusMessage execute(Namespace ns, Connection c) throws SQLException {
+        this.c = c;
+        if (!verify(false, true)) {
+            return insufficientPermissions;
+        }
+
+        String user = ns.getString("user");
+        ResultSet rs = select("role", "name='" + user + "'");
+        if (!rs.next() || !rs.getBoolean("tenantadmin")) {
+            return new StatusMessage("user is not a tenantadmin");
+        }
+        update("role", "tenantadmin=false", "name='" + user + "'");
+        log("role", "delete", "role: tenantadmin, name: " + user);
+        return new StatusMessage();
+    }
+}
+
+//class Template extends Command {
+//    @Override
+//    StatusMessage execute(Namespace ns, Connection c) throws SQLException {
+//        this.c = c;
+//
+//        return null;
+//    }
+//}
+
 public class dca {
     private static Namespace parse(String[] args) {
         ArgumentParser parser = ArgumentParsers.newArgumentParser("dca")
@@ -1008,11 +1180,11 @@ public class dca {
 
         Subparser addTenantParser = tenantSubparsers.addParser("add").help("Add a new tenant.");
         addTenantParser.setDefault("cmd", new AddTenant());
-        addTenantParser.addArgument("--tenant").help("Tenant name.")
+        addTenantParser.addArgument("-t", "--tenant").help("Tenant name.")
                 .type(String.class)
                 .metavar("TENANT")
                 .required(true);
-        addTenantParser.addArgument("--credit").help("Initial credit.")
+        addTenantParser.addArgument("-c", "--credit").help("Initial credit.")
                 .type(Float.class)
                 .metavar("CREDIT")
                 .setDefault(0f);
@@ -1021,7 +1193,7 @@ public class dca {
 
         Subparser disableTenantParser = tenantSubparsers.addParser("disable").help("Disable an existing tenant.");
         disableTenantParser.setDefault("cmd", new DisableTenant());
-        disableTenantParser.addArgument("--tenant").help("Tenant name.")
+        disableTenantParser.addArgument("-t", "--tenant").help("Tenant name.")
                 .type(String.class)
                 .metavar("TENANT")
                 .required(true);
@@ -1032,11 +1204,11 @@ public class dca {
 
         Subparser modifyTenantParser = tenantSubparsers.addParser("modify").help("Modify an existing tenant.");
         modifyTenantParser.setDefault("cmd", new ModifyTenant());
-        modifyTenantParser.addArgument("--tenant").help("Tenant name.")
+        modifyTenantParser.addArgument("-t", "--tenant").help("Tenant name.")
                 .type(String.class)
                 .metavar("TENANT")
                 .required(true);
-        modifyTenantParser.addArgument("--credit").help("Credit added.")
+        modifyTenantParser.addArgument("-c", "--credit").help("Credit added.")
                 .type(Float.class)
                 .metavar("CREDIT")
                 .required(true);
@@ -1045,11 +1217,11 @@ public class dca {
 
         Subparser paymentTenantParser = tenantSubparsers.addParser("payment").help("Make a payment to a tenant.");
         paymentTenantParser.setDefault("cmd", new PaymentTenant());
-        paymentTenantParser.addArgument("--tenant").help("Tenant name.")
+        paymentTenantParser.addArgument("-t", "--tenant").help("Tenant name.")
                 .type(String.class)
                 .metavar("TENANT")
                 .required(true);
-        paymentTenantParser.addArgument("--payment").help("Payment amount.")
+        paymentTenantParser.addArgument("-p", "--payment").help("Payment amount.")
                 .type(Float.class)
                 .metavar("PAYMENT")
                 .required(true);
@@ -1062,19 +1234,19 @@ public class dca {
 
         Subparser addProjectParser = projectSubparsers.addParser("add").help("Add a new project");
         addProjectParser.setDefault("cmd", new AddProject());
-        addProjectParser.addArgument("--tenant").help("Tenant name.")
+        addProjectParser.addArgument("-t", "--tenant").help("Tenant name.")
                 .type(String.class)
                 .metavar("TENANT")
                 .required(true);
-        addProjectParser.addArgument("--project").help("Project name.")
+        addProjectParser.addArgument("-p", "--project").help("Project name.")
                 .type(String.class)
                 .metavar("PROJECT")
                 .required(true);
-        addProjectParser.addArgument("--balance").help("Balance allocated from tenant to project.")
+        addProjectParser.addArgument("-b", "--balance").help("Balance allocated from tenant to project.")
                 .type(Float.class)
                 .metavar("BALANCE")
                 .setDefault(0f);
-        addProjectParser.addArgument("--credit").help("Credit allocated from tenant to project.")
+        addProjectParser.addArgument("-c", "--credit").help("Credit allocated from tenant to project.")
                 .type(Float.class)
                 .metavar("CREDIT")
                 .setDefault(0f);
@@ -1083,7 +1255,7 @@ public class dca {
 
         Subparser disableProjectParser = projectSubparsers.addParser("disable").help("Disable an existing project.");
         disableProjectParser.setDefault("cmd", new DisableProject());
-        disableProjectParser.addArgument("--project").help("Project name.")
+        disableProjectParser.addArgument("-p", "--project").help("Project name.")
                 .type(String.class)
                 .metavar("PROJECT")
                 .required(true);
@@ -1105,15 +1277,15 @@ public class dca {
                 .type(String.class)
                 .metavar("TO")
                 .required(true);
-        movebudgetProjectParser.addArgument("--balance").help("Balance transferred.")
+        movebudgetProjectParser.addArgument("-b", "--balance").help("Balance transferred.")
                 .type(Float.class)
                 .metavar("BALANCE")
                 .setDefault(0f);
-        movebudgetProjectParser.addArgument("--credit").help("Credit transferred.")
+        movebudgetProjectParser.addArgument("-c", "--credit").help("Credit transferred.")
                 .type(Float.class)
                 .metavar("CREDIT")
                 .setDefault(0f);
-        movebudgetProjectParser.addArgument("--type").help("Type of transfer: p2p, t2p, or p2t")
+        movebudgetProjectParser.addArgument("-t", "--type").help("Type of transfer: p2p, t2p, or p2t")
                 .choices("p2p", "t2p", "p2t")
                 .required(true);
         movebudgetProjectParser.addArgument("-m", "--mini").help("Mini-print (no newlines or tabs) output.")
@@ -1125,11 +1297,11 @@ public class dca {
 
         Subparser addUserParser = userSubparsers.addParser("add").help("Add a new user.");
         addUserParser.setDefault("cmd", new AddUser());
-        addUserParser.addArgument("--project")
+        addUserParser.addArgument("-p", "--project")
                 .type(String.class)
                 .metavar("PROJECT")
                 .required(true);
-        addUserParser.addArgument("--user")
+        addUserParser.addArgument("-u", "--user")
                 .type(String.class)
                 .metavar("USER")
                 .required(true);
@@ -1138,11 +1310,11 @@ public class dca {
 
         Subparser deleteUserParser = userSubparsers.addParser("delete").help("Delete an existing user.");
         deleteUserParser.setDefault("cmd", new DeleteUser());
-        deleteUserParser.addArgument("--project")
+        deleteUserParser.addArgument("-p", "--project")
                 .type(String.class)
                 .metavar("PROJECT")
                 .required(true);
-        deleteUserParser.addArgument("--user")
+        deleteUserParser.addArgument("-u", "--user")
                 .type(String.class)
                 .metavar("USER")
                 .required(true);
@@ -1153,13 +1325,13 @@ public class dca {
         Subparser listParser = subparsers.addParser("list")
                 .help("List billing information about a specific tenant, project, user, or any combination of the three.");
         listParser.setDefault("cmd", new ListCommand());
-        listParser.addArgument("--tenant").help("Tenant name.")
+        listParser.addArgument("-t", "--tenant").help("Tenant name.")
                 .type(String.class)
                 .metavar("TENANT");
-        listParser.addArgument("--project")
+        listParser.addArgument("-p", "--project")
                 .type(String.class)
                 .metavar("PROJECT");
-        listParser.addArgument("--user")
+        listParser.addArgument("-u", "--user")
                 .type(String.class)
                 .metavar("USER");
         listParser.addArgument("-m", "--mini").help("Mini-print (no newlines or tabs) output.")
@@ -1171,7 +1343,7 @@ public class dca {
 
         Subparser setRateParser = rateSubparsers.addParser("set").help("Set rate.");
         setRateParser.setDefault("cmd", new SetRate());
-        setRateParser.addArgument("--rate").help("New rate.")
+        setRateParser.addArgument("-r", "--rate").help("New rate.")
                 .type(Float.class)
                 .metavar("RATE")
                 .required(true);
@@ -1191,11 +1363,11 @@ public class dca {
         Subparser reservebudgetTransactionParser = transactionSubparsers.addParser("reservebudget")
                 .help("Reserve a project's budget.");
         reservebudgetTransactionParser.setDefault("cmd", new ReservebudgetTransaction());
-        reservebudgetTransactionParser.addArgument("--project").help("Project name.")
+        reservebudgetTransactionParser.addArgument("-p", "--project").help("Project name.")
                 .type(String.class)
                 .metavar("PROJECT")
                 .required(true);
-        reservebudgetTransactionParser.addArgument("--estimate").help("Estimate for processing time required.")
+        reservebudgetTransactionParser.addArgument("-e", "--estimate").help("Estimate for processing time required.")
                 .type(Integer.class)
                 .metavar("ESTIMATE")
                 .required(true);
@@ -1205,23 +1377,19 @@ public class dca {
         Subparser chargeTransactionParser = transactionSubparsers.addParser("charge")
                 .help("Charges a user and its project.");
         chargeTransactionParser.setDefault("cmd", new ChargeTransaction());
-        chargeTransactionParser.addArgument("--project")
+        chargeTransactionParser.addArgument("-p", "--project")
                 .type(String.class)
                 .metavar("PROJECT")
                 .required(true);
-        chargeTransactionParser.addArgument("--user")
-                .type(String.class)
-                .metavar("USER")
-                .required(true);
-        chargeTransactionParser.addArgument("--estimate")
+        chargeTransactionParser.addArgument("-e", "--estimate")
                 .type(Integer.class)
                 .metavar("ESTIMATE")
                 .required(true);
-        chargeTransactionParser.addArgument("--jobtime")
+        chargeTransactionParser.addArgument("-j", "--jobtime")
                 .type(Integer.class)
                 .metavar("TIME")
                 .required(true);
-        chargeTransactionParser.addArgument("--start")
+        chargeTransactionParser.addArgument("-s", "--start")
                 .type(String.class)
                 .metavar("START")
                 .required(true);
@@ -1234,7 +1402,7 @@ public class dca {
 
         Subparser generateBillParser = billSubparsers.addParser("generate").help("Generating bills.");
         generateBillParser.setDefault("cmd", new GenerateBill());
-        generateBillParser.addArgument("--project")
+        generateBillParser.addArgument("-p", "--project")
                 .type(String.class)
                 .metavar("PROJECT")
                 .required(true);
@@ -1244,6 +1412,54 @@ public class dca {
                 .metavar("PERIOD")
                 .required(true);
         generateBillParser.addArgument("-m", "--mini").help("Mini-print (no newlines or tabs) output.")
+                .action(storeTrue());
+
+        /* ROLE PARSER */
+        Subparser roleParser = subparsers.addParser("role").help("Add/remove users from roles.");
+        Subparsers roleParsers = roleParser.addSubparsers();
+
+        Subparser addRoleParser = roleParsers.addParser("add").help("Add a user to a role.");
+        Subparsers addRoleSubparsers = addRoleParser.addSubparsers();
+
+        Subparser addAdminParser = addRoleSubparsers.addParser("admin").help("Give a user admin privileges.");
+        addAdminParser.setDefault("cmd", new AddAdmin());
+        addAdminParser.addArgument("-u", "--user")
+                .type(String.class)
+                .metavar("USER")
+                .required(true);
+        addAdminParser.addArgument("-m", "--mini").help("Mini-print (no newlines or tabs) output.")
+                .action(storeTrue());
+
+        Subparser addTenantadminParser = addRoleSubparsers.addParser("tenantadmin")
+                .help("Give a user tenantadmin privileges");
+        addTenantadminParser.setDefault("cmd", new AddTenantadmin());
+        addTenantadminParser.addArgument("-u", "--user")
+                .type(String.class)
+                .metavar("USER")
+                .required(true);
+        addTenantadminParser.addArgument("-m", "--mini").help("Mini-print (no newlines or tabs) output.")
+                .action(storeTrue());
+
+        Subparser deleteRoleParser = roleParsers.addParser("delete").help("Delete a role from a user.");
+        Subparsers deleteRoleSubparsers = deleteRoleParser.addSubparsers();
+
+        Subparser deleteAdminParser = deleteRoleSubparsers.addParser("admin").help("Removes admin privileges from a user.");
+        deleteAdminParser.setDefault("cmd", new DeleteAdmin());
+        deleteAdminParser.addArgument("-u", "--user")
+                .type(String.class)
+                .metavar("USER")
+                .required(true);
+        deleteAdminParser.addArgument("-m", "--mini").help("Mini-print (no newlines or tabs) output.")
+                .action(storeTrue());
+
+        Subparser deleteTenantadminParser = deleteRoleSubparsers.addParser("tenantadmin")
+                .help("Removes tenantadmin privileges from a user.");
+        deleteTenantadminParser.setDefault("cmd", new DeleteTenantadmin());
+        deleteTenantadminParser.addArgument("-u", "--user")
+                .type(String.class)
+                .metavar("USER")
+                .required(true);
+        deleteTenantadminParser.addArgument("-m", "--mini").help("Mini-print (no newlines or tabs) output.")
                 .action(storeTrue());
 
         if (args.length == 0) {
