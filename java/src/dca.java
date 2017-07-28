@@ -855,7 +855,7 @@ class GenerateBill extends Command {
             return new StatusMessage("project does not exist");
         }
 
-        DateTimeFormatter billFormat = DateTimeFormatter.ofPattern("YYYY-MM-dd");
+        DateTimeFormatter billFormat = DateTimeFormatter.ofPattern("yyyy-MM-dd");
         LocalDateTime now = now();
         LocalDateTime start, end;
 
@@ -919,7 +919,6 @@ class GenerateBill extends Command {
         HashMap<String, HashMap<String, Float>> bill = new HashMap<>();
 
         for (String date : uniqueDates) {
-            System.out.println(date);
             bill.put(date, new HashMap<>());
         }
 
@@ -933,7 +932,6 @@ class GenerateBill extends Command {
                 totalCost += transactionRS.getFloat("cost");
 
                 String user = transactionRS.getString("user");
-                System.out.println(toDate(transactionRS.getTimestamp("end")).format(billFormat));
                 HashMap<String, Float> activities = bill.get(transactionEnd.format(billFormat));
                 if (activities.containsKey(user)) {
                     activities.put(user, activities.get(user) + runtime);
