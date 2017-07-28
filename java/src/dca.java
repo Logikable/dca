@@ -1077,7 +1077,7 @@ class AddAdmin extends Command {
         String user = ns.getString("user");
         ResultSet rs = select("role", "name='" + user + "'");
         if (!rs.next()) {
-            insert("role", "name,tenantadmin,admin", user + ",false,true");
+            insert("role", "name,tenantadmin,admin", "'" + user + "',false,true");
         } else if (rs.getBoolean("admin")) {
             return new StatusMessage("user is already an admin");
         } else {
@@ -1099,7 +1099,7 @@ class AddTenantadmin extends Command {
         String user = ns.getString("user");
         ResultSet rs = select("role", "name='" + user + "'");
         if (!rs.next()) {
-            insert("role", "name,tenantadmin,admin", user + ",true,false");
+            insert("role", "name,tenantadmin,admin", "'" + user + "',true,false");
         } else if (rs.getBoolean("admin")) {
             return new StatusMessage("user is already a tenantadmin");
         } else {
