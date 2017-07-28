@@ -21,7 +21,9 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
 import java.sql.Timestamp;
+import java.time.Instant;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
@@ -105,7 +107,7 @@ abstract class Command {
             return Integer.parseInt(s) >= 0;
         }
         try {
-            format.parse(s);
+            LocalDateTime.parse("2017-07-28 12:13:00", format);
             return true;
         } catch (DateTimeParseException e) {
             return false;
@@ -118,12 +120,15 @@ abstract class Command {
         return toDate(s, format);
     }
     LocalDateTime toDate(String s, DateTimeFormatter format) {
+        if (isInt(s)) {
+            return LocalDateTime.from(Instant.ofEpochSecond(Integer.parseInt(s)).atZone(ZoneId.systemDefault()));
+        }
         return LocalDateTime.parse(s, format);
     }
     LocalDateTime now() {
         return LocalDateTime.now();
     }
-    // returns a string representing the current time in the format YYYY-MM-dd HH:mm:ss
+    // returns a string representing the current time in the format yyyy-MM-dd HH:mm:ss
     String nowString() {
         return LocalDateTime.now().format(format);
     }
