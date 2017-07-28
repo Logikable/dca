@@ -109,6 +109,7 @@ abstract class Command {
             LocalDateTime.parse(s, format);
             return true;
         } catch (DateTimeParseException e) {
+            e.printStackTrace();
             return false;
         }
     }
@@ -117,6 +118,7 @@ abstract class Command {
             LocalDate.parse(s, billFormat);
             return true;
         } catch (DateTimeParseException e) {
+            e.printStackTrace();
             return false;
         }
     }
