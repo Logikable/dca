@@ -110,6 +110,7 @@ abstract class Command {
             LocalDateTime.parse(s, format);
             return true;
         } catch (DateTimeParseException e) {
+            e.printStackTrace();
             return false;
         }
     }
