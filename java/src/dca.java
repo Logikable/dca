@@ -926,17 +926,20 @@ class GenerateBill extends Command {
         float totalCost = 0f, totalHours = 0f;
         transactionRS.beforeFirst();        // allows us to loop through result set twice
         while (transactionRS.next()) {
-            float runtime = transactionRS.getFloat("runtime") / 3600;
-            totalHours += runtime;
-            totalCost += transactionRS.getFloat("cost");
+            LocalDateTime transactionEnd = toDate(transactionRS.getTimestamp("end"));
+            if (transactionEnd.isBefore(end)) {
+                float runtime = transactionRS.getFloat("runtime") / 3600;
+                totalHours += runtime;
+                totalCost += transactionRS.getFloat("cost");
 
-            String user = transactionRS.getString("user");
-            System.out.println(toDate(transactionRS.getTimestamp("end")).format(billFormat));
-            HashMap<String, Float> activities = bill.get(toDate(transactionRS.getTimestamp("end")).format(billFormat));
-            if (activities.containsKey(user)) {
-                activities.put(user, activities.get(user) + runtime);
-            } else {
-                activities.put(user, runtime);
+                String user = transactionRS.getString("user");
+                System.out.println(toDate(transactionRS.getTimestamp("end")).format(billFormat));
+                HashMap<String, Float> activities = bill.get(transactionEnd.format(billFormat));
+                if (activities.containsKey(user)) {
+                    activities.put(user, activities.get(user) + runtime);
+                } else {
+                    activities.put(user, runtime);
+                }
             }
         }
 
