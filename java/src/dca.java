@@ -107,7 +107,7 @@ abstract class Command {
             return Integer.parseInt(s) >= 0;
         }
         try {
-            LocalDateTime.parse("2017-07-28 12:13:00", format);
+            LocalDateTime.parse(s, format);
             return true;
         } catch (DateTimeParseException e) {
             return false;
