@@ -206,3 +206,14 @@ errors/no result
 ./dca transaction 
 
 tenant has a project with pending transactions; can't disable tenant
+
+
+transaction testing
+./dca wipe
+./dca setup
+./dca tenant add --tenant t1 --credit 100
+./dca tenant payment --tenant t1 --payment 100
+./dca project add --tenant t1 --project p2 --credit 0 --balance 0
+./dca project add --tenant t1 --project p1 --credit 100 --balance 100
+./dca user add --project p1 --user u1
+./dca rate set --rate 1

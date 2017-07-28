@@ -796,6 +796,10 @@ class ChargeTransaction extends Command {
         float credit = rs.getFloat("credit");
         float currentRequested = rs.getFloat("requested");
 
+        if (estimate > currentRequested) {
+            return new StatusMessage("less than the estimate has been requested for this project");
+        }
+
         float cost = rate * jobtime / 3600;
         float requested = rate * estimate / 3600;
         float newProjectBal, newProjectCredit;
@@ -918,7 +922,7 @@ class GenerateBill extends Command {
             bill.put(date, new HashMap<>());
         }
 
-        float totalCost = 0, totalHours = 0;
+        float totalCost = 0f, totalHours = 0f;
         transactionRS.beforeFirst();        // allows us to loop through result set twice
         while (transactionRS.next()) {
             float runtime = transactionRS.getFloat("runtime") / 3600;
