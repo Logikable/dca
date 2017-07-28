@@ -878,7 +878,7 @@ class ChargeTransaction extends Command {
             return new StatusMessage("invalid start time");
         }
 
-        String user = ns.getString("user");
+        String user = System.getProperty("user.name");
         ArrayList<String> users = fromCSV(rs.getString("users"));
         if (!caseInsensitiveContains(users, user)) {
             return new StatusMessage("project does not contain this user");
