@@ -22,6 +22,7 @@ import java.sql.SQLException;
 import java.sql.Statement;
 import java.sql.Timestamp;
 import java.time.Instant;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
@@ -71,6 +72,7 @@ class StatusMessage {
 
 abstract class Command {
     DateTimeFormatter format = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
+    DateTimeFormatter billFormat = DateTimeFormatter.ofPattern("yyyy-MM-dd");
     Connection c;
     abstract StatusMessage execute(Namespace ns, Connection c) throws SQLException;
 
@@ -100,9 +102,6 @@ abstract class Command {
     }
     // works with strings using date format, non-negative integers (epoch time)
     boolean isDate(String s) {
-        return isDate(s, format);
-    }
-    boolean isDate(String s, DateTimeFormatter format) {
         if (isInt(s)) {
             return Integer.parseInt(s) >= 0;
         }
@@ -110,17 +109,24 @@ abstract class Command {
             LocalDateTime.parse(s, format);
             return true;
         } catch (DateTimeParseException e) {
-            e.printStackTrace();
             return false;
         }
     }
-    LocalDateTime toDate(Timestamp t) {
+    boolean isDateTime(String s) {
+        try {
+            LocalDate.parse(s, billFormat);
+            return true;
+        } catch (DateTimeParseException e) {
+            return false;
+        }
+    }
+    LocalDateTime toDateTime(Timestamp t) {
         return t.toLocalDateTime();
     }
     LocalDateTime toDate(String s) {
-        return toDate(s, format);
+        return LocalDate.parse(s, billFormat).atStartOfDay();
     }
-    LocalDateTime toDate(String s, DateTimeFormatter format) {
+    LocalDateTime toDateTime(String s) {
         if (isInt(s)) {
             return LocalDateTime.from(Instant.ofEpochSecond(Integer.parseInt(s)).atZone(ZoneId.systemDefault()));
         }
@@ -787,7 +793,7 @@ class ChargeTransaction extends Command {
         if (!isTime(jobtime)) {
             return new StatusMessage("invalid jobtime");
         }
-        if (!isDate(start)) {
+        if (!isDateTime(start)) {
             return new StatusMessage("invalid start time");
         }
 
@@ -838,7 +844,7 @@ class ChargeTransaction extends Command {
             newTenantCredit = 0;
         }
 
-        LocalDateTime startDate = toDate(start);
+        LocalDateTime startDate = toDateTime(start);
         update("project", "requested=" + (currentRequested - requested) + ",balance=" + newProjectBal
                         + ",credit=" + newProjectCredit, "project='" + project + "'");
         update("tenant", "balance=" + newTenantBal + ",credit=" + newTenantCredit,
@@ -861,18 +867,17 @@ class GenerateBill extends Command {
             return new StatusMessage("project does not exist");
         }
 
-        DateTimeFormatter billFormat = DateTimeFormatter.ofPattern("yyyy-MM-dd");
         LocalDateTime now = now();
         LocalDateTime start, end;
 
         String timePeriod = ns.getString("timePeriod");
         String[] dates = timePeriod.split(",");
         if (dates.length == 2) {
-            if (!isDate(dates[0], billFormat) || !isDate(dates[1], billFormat)) {
+            if (!isDate(dates[0]) || !isDate(dates[1])) {
                 return new StatusMessage("invalid date format");
             }
-            start = toDate(dates[0], billFormat);
-            end = toDate(dates[1], billFormat);
+            start = toDate(dates[0]);
+            end = toDate(dates[1]);
         } else if (timePeriod.equalsIgnoreCase("last_day")) {
             start = now.minusDays(1);
             end = now;
@@ -903,7 +908,7 @@ class GenerateBill extends Command {
         float postTransactionTotal = 0, postPaymentTotal = 0;
 
         while (transactionRS.next()) {
-            LocalDateTime transactionEnd = toDate(transactionRS.getTimestamp("end"));
+            LocalDateTime transactionEnd = toDateTime(transactionRS.getTimestamp("end"));
             if (transactionEnd.isAfter(end)) {
                 postTransactionTotal += transactionRS.getFloat("cost");
             } else {
@@ -912,7 +917,7 @@ class GenerateBill extends Command {
             }
         }
         while (paymentRS.next()) {
-            if (toDate(paymentRS.getTimestamp("date")).isAfter(end)) {
+            if (toDateTime(paymentRS.getTimestamp("date")).isAfter(end)) {
                 postPaymentTotal += paymentRS.getFloat("payment");
             } else {
                 rangePaymentTotal += paymentRS.getFloat("payment");
@@ -931,7 +936,7 @@ class GenerateBill extends Command {
         float totalCost = 0f, totalHours = 0f;
         transactionRS.beforeFirst();        // allows us to loop through result set twice
         while (transactionRS.next()) {
-            LocalDateTime transactionEnd = toDate(transactionRS.getTimestamp("end"));
+            LocalDateTime transactionEnd = toDateTime(transactionRS.getTimestamp("end"));
             if (transactionEnd.isBefore(end)) {
                 float runtime = transactionRS.getFloat("runtime") / 3600;
                 totalHours += runtime;
