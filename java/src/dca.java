@@ -102,11 +102,8 @@ abstract class Command {
     }
     // works with strings using date format, non-negative integers (epoch time)
     boolean isDate(String s) {
-        if (isInt(s)) {
-            return Integer.parseInt(s) >= 0;
-        }
         try {
-            LocalDateTime.parse(s, format);
+            LocalDate.parse(s, billFormat);
             return true;
         } catch (DateTimeParseException e) {
             e.printStackTrace();
@@ -114,8 +111,11 @@ abstract class Command {
         }
     }
     boolean isDateTime(String s) {
+        if (isInt(s)) {
+            return Integer.parseInt(s) >= 0;
+        }
         try {
-            LocalDate.parse(s, billFormat);
+            LocalDateTime.parse(s, format);
             return true;
         } catch (DateTimeParseException e) {
             e.printStackTrace();
