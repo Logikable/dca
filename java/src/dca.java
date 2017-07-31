@@ -75,9 +75,27 @@ abstract class Command {
     Connection c;
 
     StatusMessage insufficientPermissions = new StatusMessage("insufficient permissions");
+
+    /***** DCA *****/
+
+    static String username() {
+        try {
+            Process p = Runtime.getRuntime().exec("whoami");
+            BufferedReader in = new BufferedReader(new InputStreamReader(p.getInputStream()));
+            String line = "";
+            while ((line = in.readLine()) != null) {
+                System.out.println(line);
+            }
+            return "";
+        } catch (IOException e) {
+            e.printStackTrace();
+            return "";
+        }
+    }
+
     // special verify for user commands - admins can obviously run them
     boolean verify(ResultSet projectRS) throws SQLException {
-        String username = System.getProperty("user.name");
+        String username = username();
         ArrayList<String> users = fromCSV(projectRS.getString("users"));
         if (caseInsensitiveContains(users, username)) {
             return true;
@@ -87,7 +105,7 @@ abstract class Command {
     // all commands are admin commands EXCEPT dca role add/delete admin
     boolean verify(boolean tenantadminCommand, boolean adminCommand) throws SQLException {
         // incredibly insecure way of obtaining linux login username - there are many ways to circumvent this method
-        String username = System.getProperty("user.name");
+        String username = username();
 
         if (!username.equalsIgnoreCase("root")) {
             ResultSet rs = select("role", "name='" + username + "'");
@@ -878,7 +896,7 @@ class ChargeTransaction extends Command {
             return new StatusMessage("invalid start time");
         }
 
-        String user = System.getProperty("user.name");
+        String user = username();
         ArrayList<String> users = fromCSV(rs.getString("users"));
         if (!caseInsensitiveContains(users, user)) {
             return new StatusMessage("project does not contain this user");
@@ -1147,15 +1165,6 @@ class DeleteTenantadmin extends Command {
         return new StatusMessage();
     }
 }
-
-//class Template extends Command {
-//    @Override
-//    StatusMessage execute(Namespace ns, Connection c) throws SQLException {
-//        this.c = c;
-//
-//        return null;
-//    }
-//}
 
 public class dca {
     private static Namespace parse(String[] args) {
@@ -1486,6 +1495,8 @@ public class dca {
     }
 
     public static void main(String[] args) {
+        Command.username();
+        System.exit(0);
         Namespace ns = parse(args);
         try {
             Command cmd = ns.get("cmd");

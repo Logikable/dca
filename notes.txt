@@ -38,6 +38,11 @@ log
 - details VARCHAR(4096)
 - date DATETIME
 
+role
+- name VARCHAR(32)
+- tenantadmin boolean
+- admin boolean
+
 t1/t2 valid
 t3/t4 disabled
 p11/p12/p21
@@ -209,11 +214,29 @@ tenant has a project with pending transactions; can't disable tenant
 
 
 transaction testing
-./dca wipe
-./dca setup
-./dca tenant add --tenant t1 --credit 100
-./dca tenant payment --tenant t1 --payment 100
-./dca project add --tenant t1 --project p2 --credit 0 --balance 0
-./dca project add --tenant t1 --project p1 --credit 100 --balance 100
-./dca user add --project p1 --user u1
-./dca rate set --rate 1
+./dca wipe -m
+./dca setup -m
+./dca tenant add -t t1 -c 100 -m
+./dca tenant payment -t t1 -p 100 -m
+./dca project add -t t1 -p p1 -c 100 -b 100 -m
+./dca user add -p p1 -u u1 -m
+./dca rate set -r 3600 -m
+./dca transaction reservebudget -p p1 -e 5 -m
+./dca transaction charge -p p1 -e 5 -j 5 -s "2017-07-28 11:45:00" -m
+./dca bill generate -p p1 --time_period "2017-07-28,2017-07-28"
+
+
+
+
+./dca tenant add --tenant TENANT [--credit CREDIT]
+./dca tenant disable --tenant TENANT [-y]
+./dca tenant modify --tenant TENANT [--credit CREDIT]
+./dca tenant payment --tenant TENANT [--payment PAYMENT]
+
+./dca project add --tenant TENANT --project PROJECT [--balance BALANCE] [--credit CREDIT]
+./dca project disable --project PROJECT [-y]
+./dca project movebudget --from FROM --to TO --type t2p|p2p|p2t [--balance BALANCE] [--credit CREDIT]
+
+./dca user add --project PROJECT --user USER
+./dca user delete --project PROJECT --user USER
+
