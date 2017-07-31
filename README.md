@@ -12,14 +12,16 @@ It is important to identify what dca is not. dca does not actually bill any fina
 
 ## Setup
 
-To use dca, Java 1.8.0 and MySQL-server need to be installed. On Windows, the links are:
+To use dca, Java 1.8.0 and MySQL-server need to be installed.
+
+__On Windows__, the links are:
 ```
 JRE 1.8.0: http://www.oracle.com/technetwork/java/javase/downloads/jre8-downloads-2133155.html
 MySQL: https://www.mysql.com/downloads/
 ```
 Once both are installed, setup and launch the MySQL server.
 
-On CentOS 7, the associated commands to download Java/MySQL and to run the server are:
+__On CentOS 7__, the associated commands to download Java/MySQL and to run the server are:
 ```
 sudo yum install java-1.8.0 mysql-server
 service mysqld start
@@ -27,4 +29,17 @@ service mysqld start
 
 Verify that the MySQL server has been properly set up by running `mysql -u root -p` and logging in with a blank password.
 
-If it claims that the password is incorrect or that it needs to be changed, 
+If it claims that the password is incorrect or that it needs to be changed, this is because MySQL generates a random password upon installation that needs to be changed. On CentOS, open up `/var/log/mysqld.log` in your text editor and search for `temporary password`. Use that to log in again.
+
+Try to create the `dca` database by running `CREATE DATABASE dca;`. If it tells you that your password needs to be changed, execute either `ALTER USER 'root'@'localhost' IDENTIFIED BY 'password';` or `SET PASSWORD FOR 'root'@'localhost' = PASSWORD('password');` to change your password. One of these statements should successfully change your password to `password`. Once completed, execute the database creation statement once more: `CREATE DATABASE dca;`.
+
+Now that MySQL has been setup, it is time to set up dca. This process is relatively simple: in the folder that you have downloaded dca, run `./dca setup`. This must be run as root.
+
+Congratulations! dca is now properly configured.
+
+### Wiping MySQL
+
+In the event of a corrupted database or the need for a reset, it is simple to wipe dca's data. Simply run `./dca wipe` and `./dca setup` to start again with a fresh database.
+
+## Commands
+
