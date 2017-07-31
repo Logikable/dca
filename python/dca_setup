@@ -1,0 +1,73 @@
+#!/usr/bin/python3.4
+import dca_cfg
+config = dca_cfg.cfg()
+
+from elasticsearch import Elasticsearch
+es = Elasticsearch(hosts=config.eshosts, http_auth=(config.username, config.password))
+
+es.indices.create(index='tenant', body='{'
+        + '"mappings": {'
+        + '"tenant": {'
+        +   '"properties": {'
+        +     '"name": {"type": "text"},'
+        +     '"balance": {"type": "float"},'
+        +     '"credit": {"type": "float"},'
+        +     '"projects": {"type": "text"},'
+        +     '"d": {"type": "boolean"}'
+        +   '}'
+        + '}}}')
+es.indices.create(index='project', body='{'
+        + '"mappings": {'
+        + '"project": {'
+        +   '"properties": {'
+        +     '"tenant": {"type": "text"},'
+        +     '"project": {"type": "text"},'
+        +     '"balance": {"type": "float"},'
+        +     '"credit": {"type": "float"},'
+        +     '"requested": {"type": "float"},'
+        +     '"rate": {"type": "float"},'
+        +     '"users": {"type": "text"},'
+        +     '"d": {"type": "boolean"}'
+        +   '}'
+        + '}}}')
+es.indices.create(index='transaction', body='{'
+        + '"mappings": {'
+        + '"transaction": {'
+        +   '"properties": {'
+        +     '"project": {"type": "text"},'
+        +     '"user": {"type": "text"},'
+        +     '"start": {"type": "date", "format": "yyyy-MM-dd HH:mm:ss"},'
+        +     '"end": {"type": "date", "format": "yyyy-MM-dd HH:mm:ss"},'
+        +     '"runtime": {"type": "integer"},'
+        +     '"cost": {"type": "float"}'
+        +   '}'
+        + '}}}')
+es.indices.create(index='payment', body='{'
+        + '"mappings": {'
+        + '"payment": {'
+        +   '"properties": {'
+        +     '"tenant": {"type": "text"},'
+        +     '"date": {"type": "date", "format": "yyyy-MM-dd HH:mm:ss"},'
+        +     '"payment": {"type": "float"}'
+        +   '}'
+        + '}}}')
+es.indices.create(index='rate', body='{'
+        + '"mappings": {'
+        + '"rate": {'
+        +   '"properties": {'
+        +     '"rate": {"type": "float"}'
+        +   '}'
+        + '}}}')
+es.indices.create(index='log', body='{'
+        + '"mappings": {'
+        + '"log": {'
+        +   '"properties": {'
+        +     '"category": {"type": "text"},'
+        +     '"action": {"type": "text"},'
+        +     '"details": {"type": "text"},'
+        +     '"date": {"type": "date", "format": "yyyy-MM-dd HH:mm:ss"}'
+        +   '}'
+        + '}}}')
+
+es.indices.put_settings(body='{"index": {"max_result_window": 500000}}')
+es.index(index='rate', doc_type='rate', id='rate', body='{"rate": 0.0}')

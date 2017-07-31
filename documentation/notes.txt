@@ -1,0 +1,318 @@
+Database dca
+tenant
+- name VARCHAR(32)
+- balance FLOAT
+- credit FLOAT
+- projects VARCHAR(4096)
+- d BOOLEAN
+
+project
+- tenant VARCHAR(32)
+- project VARCHAR(32)
+- balance FLOAT
+- credit FLOAT
+- requested FLOAT
+- rate FLOAT
+- users VARCHAR(4096)
+- d BOOLEAN
+
+transaction
+- project VARCHAR(32)
+- user VARCHAR(32)
+- start DATETIME
+- end DATETIME
+- runtime INT
+- cost FLOAT
+
+payment
+- tenant VARCHAR(32)
+- date DATETIME
+- payment FLOAT
+
+rate
+- rate FLOAT
+
+log
+- category VARCHAR(32)
+- action VARCHAR(32)
+- details VARCHAR(4096)
+- date DATETIME
+
+role
+- name VARCHAR(32)
+- tenantadmin boolean
+- admin boolean
+
+t1/t2 valid
+t3/t4 disabled
+p11/p12/p21
+p13/p14
+
+unit testing
+
+create tenant
+./dca tenant add --tenant t1
+create tenant with default credit
+./dca tenant add --tenant t2 --credit 10
+create tenant with invalid name
+./dca tenant add --tenant ^
+./dca tenant add --tenant 123456789012345678901234567890123
+create existing tenant
+./dca tenant add --tenant t1
+invalid credit amount
+./dca tenant add --tenant t100 --credit a
+./dca tenant add --tenant t100 --credit -1
+
+disable tenant
+./dca tenant add --tenant t3
+./dca tenant disable --tenant t3
+creating disabled tenant
+./dca tenant add --tenant t3
+disable tenant with -y
+./dca tenant add --tenant t4
+./dca tenant disable --tenant t4 -y
+disable already disabled tenant
+./dca tenant disable --tenant t3
+disable non existing tenant
+./dca tenant disable --tenant t100
+
+modify tenant
+./dca tenant modify --tenant t1 --credit 10
+modify disabled tenant
+./dca tenant modify --tenant t3 --credit 10
+modify non existing tenant
+./dca tenant modify --tenant t100 --credit 10
+invalid credit amount
+./dca tenant modify --tenant t1 --credit a
+./dca tenant modify --tenant t1 --credit -1
+
+tenant payment
+./dca tenant payment --tenant t1 --payment 10
+invalid tenant
+./dca tenant payment --tenant t100 --payment 10
+disabled tenant
+./dca tenant payment --tenant t3 --payment 10
+invalid payment
+./dca tenant payment --tenant t1 --payment a
+./dca tenant payment --tenant t1 --payment -1
+
+add project
+./dca project add --tenant t1 --project p11
+add project with balance and credit
+./dca project add --tenant t1 --project p12 --balance 5 --credit 5 
+invalid tenant
+./dca project add --tenant t100 --project p1
+disabled tenant
+./dca project add --tenant t3 --project p1
+existing project
+./dca project add --tenant t1 --project p11
+./dca project add --tenant t2 --project p11
+invalid name
+./dca project add --tenant t1 --project ^
+./dca project add --tenant t1 --project 123456789012345678901234567890123
+invalid bal/credit amount
+./dca project add --tenant t1 --project p13 --balance a
+./dca project add --tenant t1 --project p13 --credit a
+./dca project add --tenant t1 --project p13 --balance -1
+./dca project add --tenant t1 --project p13 --credit -1
+insufficent bal/credit
+./dca project add --tenant t1 --project p13 --balance 100
+./dca project add --tenant t1 --project p13 --credit 100
+too much credit allocated to projects; can't modify tenant
+./dca tenant modify --tenant t1 --credit 0
+
+disable project
+./dca project add --tenant t1 --project p13
+./dca project disable --project p13
+creating disabled project
+./dca project add --tenant t1 --project p13
+disable disabled project
+./dca project disable --project p13
+disable project with -y
+./dca project add --tenant t1 --project p14
+./dca project disable --project p14 -y
+disable invalid project
+./dca project disable --project p100
+
+invalid from-project
+./dca project movebudget --from p100 --to p11 --type p2p
+./dca project movebudget --from p13 --to p11 --type p2p
+invalid from-tenant
+./dca project movebudget --from t100 --to p11 --type t2p
+./dca project movebudget --from t3 --to p11 --type t2p
+invalid to-project
+./dca project movebudget --from t1 --to p100 --type t2p
+./dca project movebudget --from t1 --to p13 --type t2p
+invalid to-tenant
+./dca project movebudget --from p11 --to t100 --type p2t
+./dca project movebudget --from p11 --to t3 --type p2t
+project not belonging to tenant
+./dca project movebudget --from t2 --to p11 --type t2p
+./dca project movebudget --from p11 --to t2 --type p2t
+projects not part of same tenant
+./dca project add --tenant t2 --project p21
+./dca project movebudget --from p11 --to p21 --type p2p
+insufficient bal/credit from-tenant
+./dca project movebudget --from t1 --to p11 --type t2p --balance 100
+./dca project movebudget --from t1 --to p11 --type t2p --credit 10
+^^^^^^^^
+DO MORE TESTING HERE!!!!
+
+./dca user add --project p11 --user u1
+user already exists
+./dca user add --project p11 --user u1
+project doesn't exist
+./dca user add --project p100 --user u1
+project disabled
+./dca user add --project p13 --user u1
+invalid name
+./dca user add --project p11 --user u123456789012345678901234567890123
+./dca user add --project p11 --user ^
+
+deletion
+./dca user delete --project p11 --user u1
+user doesnt exist
+./dca user delete --project p11 --user u1
+project doesn't exist
+./dca user delete --project p100 --user u1
+project disabled
+./dca user delete --project p13 --user u1
+
+./dca user add --project p11 --user u1
+./dca user add --project p21 --user u1
+./dca list
+./dca list --tenant t1
+./dca list --project p11
+./dca list --user u1
+./dca list --tenant t1 --project p11
+./dca list --tenant t1 --user u1
+./dca list --project p11 --user u1
+./dca list --tenant t1 --project p11 --user u1
+
+errors/no result
+./dca list --tenant t10
+./dca list --project p100
+./dca list --user u10
+./dca list --tenant t1 --project p100
+./dca list --tenant t1 --project p21
+./dca list --tenant t10 --project p11
+./dca list --tenant t1 --user u10
+./dca list --tenant t10 --user u1
+./dca list --project p100 --user u1
+./dca list --project p11 --user u10
+./dca list --tenant t1 --project p11 --user u2
+./dca list --tenant t1 --project p100 --user u1
+./dca list --tenant t10 --project p11 --user u1
+./dca list --tenant t1 --project p21 --user u1
+./dca list --tenant t1 --project p11 --user u2
+./dca list --tenant t2 --project p11 --user u1
+
+./dca transaction reservebudget --project p1 --estimate 10
+./dca transaction 
+
+tenant has a project with pending transactions; can't disable tenant
+
+
+transaction testing
+./dca wipe -m
+./dca setup -m
+./dca tenant add -t t1 -c 100 -m
+./dca tenant payment -t t1 -p 100 -m
+./dca project add -t t1 -p p1 -c 100 -b 100 -m
+./dca user add -p p1 -u u1 -m
+./dca rate set -r 3600 -m
+./dca transaction reservebudget -p p1 -e 5 -m
+./dca transaction charge -p p1 -e 5 -j 5 -s "2017-07-28 11:45:00" -m
+./dca bill generate -p p1 --time_period "2017-07-28,2017-07-28"
+
+
+
+
+./dca tenant add --tenant TENANT [--credit CREDIT]
+./dca tenant disable --tenant TENANT [-y]
+./dca tenant modify --tenant TENANT [--credit CREDIT]
+./dca tenant payment --tenant TENANT [--payment PAYMENT]
+
+./dca project add --tenant TENANT --project PROJECT [--balance BALANCE] [--credit CREDIT]
+./dca project disable --project PROJECT [-y]
+./dca project movebudget --from FROM --to TO --type t2p|p2p|p2t [--balance BALANCE] [--credit CREDIT]
+
+./dca user add --project PROJECT --user USER
+./dca user delete --project PROJECT --user USER
+
+./dca list [--tenant TENANT] [--project PROJECT] [--user USER]
+
+./dca rate set [--rate RATE]
+./dca rate get
+
+./dca transaction reservebudget --project PROJECT --estimate ESTIMATE
+./dca transaction charge --project PROJECT --estimate ESTIMATE --jobtime JOBTIME --start START 
+
+./dca bill generate --project PROJECT --time_period=last_day|last_week|last_month|<date>,<date>
+
+./dca role add admin --user USER
+./dca role add tenantadmin --user USER
+./dca role delete admin --user USER
+./dca role delete tenantadmin --user USER
+
+
+
+
+WHAT IS DCA?
+dca stands for distributed computing accounting - it's a payment logging service that allows administrators of distributed computing systems to charge and log transactions that users make.
+It's like PayPal except without the actual charging accounts part - it'll log all transactions and keep balances
+It's meant to 
+There is a credit system in place that allows admins to give tenants/projects free credit
+
+WHAT (IS THE STRUCTURE)?
+Starting from the top, tenants are the largest entity: they own multiple projects and are responsible for distributing money to their projects.
+Projects have a balance and credit. Transactions and bill generation occur at a project level. They have lists of users that can create transactions. Like tenants, projects are entities, not individuals.
+Users are at the bottom, and represent individuals that need computing time. They can request this time from projects that they are a part of.
+
+PERMISSIONS:
+ROOT - root has the permission to run every command
+ADMIN - admins may run every command but ROLE ADD/DELETE ADMIN
+TENANTADMIN - tenantadmins are allowed to run PROJECT, USER, LIST, and BILL commands
+USER - can only run TRANSACTION commands
+permissions are based off linux username
+
+LIFECYCLE:
+Admins make new tenants, add some payments, tenantadmins make new projects, users use computing time and make transactions.
+
+TECHNICAL DETAILS?
+Originally written in Python & using elasticsearch, moved to Java and MySQL
+All data is stored in a database - default username and password are "root" and "password"
+
+
+ADMIN/TENANTADMIN roles are assigned by roles above theirs using the ROLE ADD command
+USER roles are tied to projects, and can be assigned by any other ROLE using the USER ADD command
+
+LOGGING:
+Every command run is logged with its parameters with the exception of RATE GET, listing, bill generation, and transactional commands - the first three because they do not make edits, and the latter because it is a high volume command.
+
+OUTPUT:
+Since dca is a RESTful API, it returns a JSON string. Every response has a status field and an error field. The status field will either be success or failed, with the error field being empty on success and containing a reason on failure.
+It may also have other fields. When a bill is generated, the bill is put into its own field: "bill". Same with listing: "list", and getting rate: "rate".
+
+COMMAND DETAILS:
+TENANT ADD - self explanatory, you can specify initial credit
+TENANT DISABLE - disables a tenant - does not delete, as its data may be necessary for generating bills. Prevents it from showing up in listings. Asks for confirmation
+TENANT MODIFY - changes credit - cannot be set to an amount lower than what is currently requested for its projects
+TENANT PAYMENT - a tenant has made a payment, and its balanced will be increased accordingly
+
+PROJECT ADD - self explanatory, specify balance and credit allocated
+PROJECT DISABLE - just like tenant disable
+PROJECT MOVEBUDGET - move balance and credit to and from projects and tenants
+
+USER ADD/DELETE - self explanatory, used as permissions for TRANSACTION commands
+
+LIST - lists all not-disabled tenants along with their projects and users. Follows JSON format. Tenants, projects, and users can be specified as filters.
+
+RATE GET/SET - why do we need a rate? The rate acts as a global variable that acts as a conversion between computing time and dollars. The rate has the unit $/hour
+
+TRANSACTION RESERVEBUDGET - allows a user to reserve part of a project's budget while a job is being processed
+TRANSACTION CHARGE - once a job is completed, charge the project. This logs the transaction with a start/end date along with cost & runtime
+
+BILL GENERATE - self explanatory, specify a time period that the bill should be generated for
+
+ROLE ADD/DELETE ADMIN/TENANTADMIN - explained earlier
