@@ -77,20 +77,16 @@ abstract class Command {
     StatusMessage insufficientPermissions = new StatusMessage("insufficient permissions");
 
     /***** DCA *****/
-
-    static String username() {
+    String username() {
         try {
             Process p = Runtime.getRuntime().exec("whoami");
             BufferedReader in = new BufferedReader(new InputStreamReader(p.getInputStream()));
-            String line = "";
-            while ((line = in.readLine()) != null) {
-                System.out.println(line);
-            }
-            return "";
+            System.out.println(in.readLine());
         } catch (IOException e) {
             e.printStackTrace();
-            return "";
+            System.exit(1);
         }
+        return null;
     }
 
     // special verify for user commands - admins can obviously run them
@@ -123,7 +119,6 @@ abstract class Command {
     abstract StatusMessage execute(Namespace ns, Connection c) throws SQLException;
 
     /***** UTILITY *****/
-
     boolean isInt(String s) {
         try {
             Integer.parseInt(s);
@@ -263,7 +258,6 @@ abstract class Command {
     }
 
     /***** SQL *****/
-
     void create(String table, String columns) throws SQLException {
         c.createStatement().execute("CREATE TABLE " + table + "(" + columns + ")");
     }
@@ -1495,8 +1489,6 @@ public class dca {
     }
 
     public static void main(String[] args) {
-        Command.username();
-        System.exit(0);
         Namespace ns = parse(args);
         try {
             Command cmd = ns.get("cmd");
