@@ -81,7 +81,7 @@ abstract class Command {
         try {
             Process p = Runtime.getRuntime().exec("whoami");
             BufferedReader in = new BufferedReader(new InputStreamReader(p.getInputStream()));
-            System.out.println(in.readLine());
+            return in.readLine();
         } catch (IOException e) {
             e.printStackTrace();
             System.exit(1);
