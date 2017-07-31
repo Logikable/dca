@@ -240,3 +240,79 @@ transaction testing
 ./dca user add --project PROJECT --user USER
 ./dca user delete --project PROJECT --user USER
 
+./dca list [--tenant TENANT] [--project PROJECT] [--user USER]
+
+./dca rate set [--rate RATE]
+./dca rate get
+
+./dca transaction reservebudget --project PROJECT --estimate ESTIMATE
+./dca transaction charge --project PROJECT --estimate ESTIMATE --jobtime JOBTIME --start START 
+
+./dca bill generate --project PROJECT --time_period=last_day|last_week|last_month|<date>,<date>
+
+./dca role add admin --user USER
+./dca role add tenantadmin --user USER
+./dca role delete admin --user USER
+./dca role delete tenantadmin --user USER
+
+
+
+
+WHAT IS DCA?
+dca stands for distributed computing accounting - it's a payment logging service that allows administrators of distributed computing systems to charge and log transactions that users make.
+It's like PayPal except without the actual charging accounts part - it'll log all transactions and keep balances
+It's meant to 
+There is a credit system in place that allows admins to give tenants/projects free credit
+
+WHAT (IS THE STRUCTURE)?
+Starting from the top, tenants are the largest entity: they own multiple projects and are responsible for distributing money to their projects.
+Projects have a balance and credit. Transactions and bill generation occur at a project level. They have lists of users that can create transactions. Like tenants, projects are entities, not individuals.
+Users are at the bottom, and represent individuals that need computing time. They can request this time from projects that they are a part of.
+
+PERMISSIONS:
+ROOT - root has the permission to run every command
+ADMIN - admins may run every command but ROLE ADD/DELETE ADMIN
+TENANTADMIN - tenantadmins are allowed to run PROJECT, USER, LIST, and BILL commands
+USER - can only run TRANSACTION commands
+permissions are based off linux username
+
+LIFECYCLE:
+Admins make new tenants, add some payments, tenantadmins make new projects, users use computing time and make transactions.
+
+TECHNICAL DETAILS?
+Originally written in Python & using elasticsearch, moved to Java and MySQL
+All data is stored in a database - default username and password are "root" and "password"
+
+
+ADMIN/TENANTADMIN roles are assigned by roles above theirs using the ROLE ADD command
+USER roles are tied to projects, and can be assigned by any other ROLE using the USER ADD command
+
+LOGGING:
+Every command run is logged with its parameters with the exception of RATE GET, listing, bill generation, and transactional commands - the first three because they do not make edits, and the latter because it is a high volume command.
+
+OUTPUT:
+Since dca is a RESTful API, it returns a JSON string. Every response has a status field and an error field. The status field will either be success or failed, with the error field being empty on success and containing a reason on failure.
+It may also have other fields. When a bill is generated, the bill is put into its own field: "bill". Same with listing: "list", and getting rate: "rate".
+
+COMMAND DETAILS:
+TENANT ADD - self explanatory, you can specify initial credit
+TENANT DISABLE - disables a tenant - does not delete, as its data may be necessary for generating bills. Prevents it from showing up in listings. Asks for confirmation
+TENANT MODIFY - changes credit - cannot be set to an amount lower than what is currently requested for its projects
+TENANT PAYMENT - a tenant has made a payment, and its balanced will be increased accordingly
+
+PROJECT ADD - self explanatory, specify balance and credit allocated
+PROJECT DISABLE - just like tenant disable
+PROJECT MOVEBUDGET - move balance and credit to and from projects and tenants
+
+USER ADD/DELETE - self explanatory, used as permissions for TRANSACTION commands
+
+LIST - lists all not-disabled tenants along with their projects and users. Follows JSON format. Tenants, projects, and users can be specified as filters.
+
+RATE GET/SET - why do we need a rate? The rate acts as a global variable that acts as a conversion between computing time and dollars. The rate has the unit $/hour
+
+TRANSACTION RESERVEBUDGET - allows a user to reserve part of a project's budget while a job is being processed
+TRANSACTION CHARGE - once a job is completed, charge the project. This logs the transaction with a start/end date along with cost & runtime
+
+BILL GENERATE - self explanatory, specify a time period that the bill should be generated for
+
+ROLE ADD/DELETE ADMIN/TENANTADMIN - explained earlier
