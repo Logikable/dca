@@ -45,6 +45,18 @@ In the event of a corrupted database or the need for a reset, it is simple to wi
 
 All of the supported commands are listed below:
 
+Setup/breakdown of dca's MySQL database:
+```
+dca setup
+dca wipe
+```
+Role addition or deletion:
+```
+dca role add admin -u|--user=<name>
+dca role delete admin -u|--user=<name>
+dca role add tenantadmin -u|--user=<name>
+dca role delete tenantadmin -u|--user=<name>
+```
 Tenant related commands – adding, disabling, adding credit, adding balance:
 ```
 dca tenant add -t|--tenant=<name> [-c|--credit=<amount>]
@@ -81,13 +93,6 @@ Generating a bill:
 ```
 dca bill generate -p|--project=<name> --time_period=last_day|last_week|last_month|<date>,<date>
 ```
-Role addition or deletion:
-```
-dca role add admin -u|--user=<name>
-dca role delete admin -u|--user=<name>
-dca role add tenantadmin -u|--user=<name>
-dca role delete tenantadmin -u|--user=<name>
-```
 
 There are restrictions and guidelines to what the argument values can be. All restrictions are listed below.
 
@@ -105,7 +110,60 @@ There are restrictions and guidelines to what the argument values can be. All re
 
 There are 4 levels of permissions built into dca. Each user can have any combination of them (with the exception of root).
 
-* ROOT: They are capable of executing any command. Only the root user may have this permission. 
-* ADMIN: They are capable of running any command excluding those that manage the admin role. The admin permission may be given using the command `dca role add admin -u|--user=<name>`.
-* TENANTADMIN: Tenantadmins may run any `project`, `user`, `list`, and `bill` command. The tenantadmin permission may be given using the command `dca role add tenantadmin -u|--user=<name>`. 
-* USER: Users are tied to projects, and can only execute `transaction` commands. They can be added to a project using the command `dca user add -p|--project=<name> -u|--user=<name>`.
+* Root: They are capable of executing any command. Only the root user may have this permission. 
+* Admin: They are capable of running any command excluding those that manage the admin role or the MySQL database. The admin permission may be given using the command `dca role add admin -u|--user=<name>`.
+* Tenantadmin: Tenantadmins may run any `project`, `user`, `list`, and `bill` command. The tenantadmin permission may be given using the command `dca role add tenantadmin -u|--user=<name>`. 
+* User: Users are tied to projects, and can only execute `transaction` commands. They can be added to a project using the command `dca user add -p|--project=<name> -u|--user=<name>`.
+
+## Database Schema
+
+Below you can find the dca database schema that is generated after dca is set up.
+```
+tenant
+- name VARCHAR(32)
+- balance FLOAT
+- credit FLOAT
+- projects VARCHAR(4096)
+- d BOOLEAN
+
+project
+- tenant VARCHAR(32)
+- project VARCHAR(32)
+- balance FLOAT
+- credit FLOAT
+- requested FLOAT
+- rate FLOAT
+- users VARCHAR(4096)
+- d BOOLEAN
+
+transaction
+- project VARCHAR(32)
+- user VARCHAR(32)
+- start DATETIME
+- end DATETIME
+- runtime INT
+- cost FLOAT
+
+payment
+- tenant VARCHAR(32)
+- date DATETIME
+- payment FLOAT
+
+rate
+- rate FLOAT
+
+log
+- category VARCHAR(32)
+- action VARCHAR(32)
+- details VARCHAR(4096)
+- date DATETIME
+
+role
+- name VARCHAR(32)
+- tenantadmin boolean
+- admin boolean
+```
+
+## Future Plans
+
+As is the case with a lot of software, dca has room for improvement. We hope to see a more flexible rate system that can accommodate CPU cores used, memory allocated, and other metrics in order to accurately charge tenants for their users' usage.
