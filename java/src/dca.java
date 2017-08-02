@@ -1289,7 +1289,7 @@ public class dca {
                 .type(Float.class)
                 .metavar("CREDIT")
                 .setDefault(0f);
-        movebudgetProjectParser.addArgument("-t", "--type").help("Type of transfer: p2p, t2p, or p2t")
+        movebudgetProjectParser.addArgument("--type").help("Type of transfer: p2p, t2p, or p2t")
                 .choices("p2p", "t2p", "p2t")
                 .required(true);
         movebudgetProjectParser.addArgument("-m", "--mini").help("Mini-print (no newlines or tabs) output.")
