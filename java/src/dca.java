@@ -786,11 +786,9 @@ class ListCommand extends Command {
         ResultSet tenantRS = select("tenant", "d=false" + (tenant != null ? " AND name='" + tenant + "'" : ""));
         if (tenant != null) {
             if (!tenantRS.next()) {       // if tenant was not specified, then it being empty is fine
-                return new StatusMessage("tenant does not exist");
+                return new StatusMessage("tenant does not exist or has been disabled");
             }
-            if (tenantRS.getBoolean("d")) {
-                return new StatusMessage("tenant is disabled");
-            }
+            // no need to check that tenant is disabled; we filtered for d = false in our query
         }
 
         tenantRS.beforeFirst();
