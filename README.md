@@ -117,6 +117,22 @@ There are 4 levels of permissions built into dca. Each user can have any combina
 * __Tenantadmin__: Tenantadmins may run any `project`, `user`, `list`, and `bill` command. The tenantadmin permission may be given using the command `dca role add tenantadmin -u|--user=<name>`. 
 * __User__: Users are tied to projects, and can only execute `transaction` commands. They can be added to a project using the command `dca user add -p|--project=<name> -u|--user=<name>`.
 
+A simple visual for reference that orders the permissions nicely is available:
+
+| Command | User | Tenantadmin | Admin | Root |
+| --- | :---: | :---: | :---: | :---: |
+| wipe/setup |  |  |  | x |
+| role add/delete admin |  |  |  | x |
+| role add/delete tenantadmin |  |  | x | x |
+| tenant add/disable/modify/payment |  |  | x | x |
+| project add/disable/movebudget |  | x | x | x |
+| user add/delete |  | x | x | x |
+| list |  | x | x | x |
+| rate set/get |  |  | x | x |
+| transaction reservebudget/charge | x |  | x | x |
+| bill generate |  | x | x | x |
+
+
 ## Database Schema
 
 In the event of the need to fix a corrupted database, to re-enable a disabled tenant/project, or to access the logs, it is important for a dca administrator to understand the schemas that dca uses. Below you can find the dca database schema that is generated after dca is set up.
