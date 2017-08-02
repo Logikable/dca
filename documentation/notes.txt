@@ -9,7 +9,7 @@ tenant
 project
 - tenant VARCHAR(32)
 - project VARCHAR(32)
-- balance FLOAT
+- balance FLOAT	
 - credit FLOAT
 - requested FLOAT
 - rate FLOAT
