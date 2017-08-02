@@ -43,6 +43,8 @@ In the event of a corrupted database or the need for a reset, it is simple to wi
 
 ## Commands
 
+dca comes with a variety of features for your accounting needs. Along with basic commands to add, disable, or modify tenants, projects, and users, it allows for an easily customizable rate for which tenants will be charged at. Disclaimer: arguments should be kept case consistent. Failure to do so may cause errors.
+
 All of the supported commands are listed below:
 
 Setup/breakdown of dca's MySQL database:
@@ -110,10 +112,10 @@ There are restrictions and guidelines to what the argument values can be. All re
 
 There are 4 levels of permissions built into dca. Each user can have any combination of them (with the exception of root).
 
-* Root: They are capable of executing any command. Only the root user may have this permission. 
-* Admin: They are capable of running any command excluding those that manage the admin role or the MySQL database. The admin permission may be given using the command `dca role add admin -u|--user=<name>`.
-* Tenantadmin: Tenantadmins may run any `project`, `user`, `list`, and `bill` command. The tenantadmin permission may be given using the command `dca role add tenantadmin -u|--user=<name>`. 
-* User: Users are tied to projects, and can only execute `transaction` commands. They can be added to a project using the command `dca user add -p|--project=<name> -u|--user=<name>`.
+* __Root__: They are capable of executing any command. Only the root user may have this permission. 
+* __Admin__: They are capable of running any command excluding those that manage the admin role or the MySQL database. The admin permission may be given using the command `dca role add admin -u|--user=<name>`.
+* __Tenantadmin__: Tenantadmins may run any `project`, `user`, `list`, and `bill` command. The tenantadmin permission may be given using the command `dca role add tenantadmin -u|--user=<name>`. 
+* __User__: Users are tied to projects, and can only execute `transaction` commands. They can be added to a project using the command `dca user add -p|--project=<name> -u|--user=<name>`.
 
 ## Database Schema
 
@@ -160,8 +162,8 @@ log
 
 role
 - name VARCHAR(32)
-- tenantadmin boolean
-- admin boolean
+- tenantadmin BOOLEAN
+- admin BOOLEAN
 ```
 
 ## Future Plans
