@@ -43,3 +43,69 @@ In the event of a corrupted database or the need for a reset, it is simple to wi
 
 ## Commands
 
+All of the supported commands are listed below:
+
+Tenant related commands – adding, disabling, adding credit, adding balance:
+```
+dca tenant add -t|--tenant=<name> [-c|--credit=<amount>]
+dca tenant disable -t|--tenant=<name> [-y]
+dca tenant modify -t|--tenant=<name> -c|--credit=<amount>
+dca tenant payment -t|--tenant=<name> -p|--payment=<amount>
+```
+Project related commands – adding, disabling, and moving budget around between projects and the tenant:
+```
+dca project add -p|--project=<name> -t|--tenant=<name> [-b|--balance=<amount>] [-c|--credit=<amount>]
+dca project disable -p|--project=<name> [-y]
+dca project movebudget --from=<name> --to=<name> [-b|--balance=<amount>] [-c|--credit=<amount>] --type=p2p|t2p|p2t
+```
+User related commands – adding and deleting users:
+```
+dca user add -p|--project=<name> -u|--user=<name>
+dca user delete -p|--project=<name> -u|--user=<name>
+```
+Listing information about a specified tenant, project, user, or any combination of the three: 
+```
+dca list [-t|--tenant=<name>] [-p|--project=<name>] [-u|--user=<name>]
+```
+Rate related commands – setting and getting the rate:
+```
+dca rate set -r|--rate=<rate>
+dca rate get
+```
+Transaction related commands – reserving part of a project’s budget and charging the project:
+```
+dca transaction reservebudget -p|--project=<name> -e|--estimate=<time>
+dca transaction charge -p|--project=<name> -e|--estimate=<time> -j|--jobtime=<time> -s|--start=<time>
+```
+Generating a bill:
+```
+dca bill generate -p|--project=<name> --time_period=last_day|last_week|last_month|<date>,<date>
+```
+Role addition or deletion:
+```
+dca role add admin -u|--user=<name>
+dca role delete admin -u|--user=<name>
+dca role add tenantadmin -u|--user=<name>
+dca role delete tenantadmin -u|--user=<name>
+```
+
+There are restrictions and guidelines to what the argument values can be. All restrictions are listed below.
+
+* By default, all of the outputs will be pretty printed (human readable format). In order to receive a mini output (flat, no indentation), use the optional argument `-m` or `--mini`. 
+* Tenant, project, and usernames must be alphanumeric and less than (or exactly) 32 characters in length. Project names must be unique.
+* Deleting tenants and projects does not actually delete them. It merely disables them (which requires a confirmation). This is so that bills can still be generated 
+* Balance, credit, and payments amounts must be a non-negative numeric value.
+* The type argument under project movebudget determines whether the from and to destinations are projects (p) or tenants (t).
+* The `rate` is measured in dollars per hour.
+* Transaction `estimate` and `jobtime` are measured in seconds, and must be an integer value.
+* The start time must be in the format YYYY-MM-DD HH:mm:ss, or a Unix epoch value.
+* `time_period` (if a default one is not chosen) must be two dates in the format YYYY-MM-DD.
+
+### Permissions
+
+There are 4 levels of permissions built into dca. Each user can have any combination of them (with the exception of root).
+
+* ROOT: They are capable of executing any command. Only the root user may have this permission. 
+* ADMIN: They are capable of running any command excluding those that manage the admin role. The admin permission may be given using the command `dca role add admin -u|--user=<name>`.
+* TENANTADMIN: Tenantadmins may run any `project`, `user`, `list`, and `bill` command. The tenantadmin permission may be given using the command `dca role add tenantadmin -u|--user=<name>`. 
+* USER: Users are tied to projects, and can only execute `transaction` commands. They can be added to a project using the command `dca user add -p|--project=<name> -u|--user=<name>`.
