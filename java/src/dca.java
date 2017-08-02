@@ -93,13 +93,10 @@ abstract class Command {
     boolean verify(ResultSet projectRS) throws SQLException {
         String username = username();
         ArrayList<String> users = fromCSV(projectRS.getString("users"));
-        if (caseInsensitiveContains(users, username)) {
-            return true;
-        }
-        return verify(false, true);
+        return caseInsensitiveContains(users, username) || verify(false);
     }
     // all commands are admin commands EXCEPT dca role add/delete admin
-    boolean verify(boolean tenantadminCommand, boolean adminCommand) throws SQLException {
+    boolean verify(boolean tenantadminCommand) throws SQLException {
         // incredibly insecure way of obtaining linux login username - there are many ways to circumvent this method
         String username = username();
 
@@ -107,7 +104,7 @@ abstract class Command {
             ResultSet rs = select("role", "name='" + username + "'");
             if (!rs.next()
                     || !(rs.getBoolean("tenantadmin") && tenantadminCommand
-                    || rs.getBoolean("admin") && adminCommand)) {
+                    || rs.getBoolean("admin"))) {
                 return false;
             }
         }
@@ -335,7 +332,7 @@ class AddTenant extends Command {
     @Override
     StatusMessage execute(Namespace ns, Connection c) throws SQLException {
         this.c = c;
-        if (!verify(false, true)) {
+        if (!verify(false)) {
             return insufficientPermissions;
         }
 
@@ -366,7 +363,7 @@ class DisableTenant extends Command {
     @Override
     StatusMessage execute(Namespace ns, Connection c) throws SQLException {
         this.c = c;
-        if (!verify(false, true)) {
+        if (!verify(false)) {
             return insufficientPermissions;
         }
 
@@ -401,7 +398,7 @@ class ModifyTenant extends Command {
     @Override
     StatusMessage execute(Namespace ns, Connection c) throws SQLException {
         this.c = c;
-        if (!verify(false, true)) {
+        if (!verify(false)) {
             return insufficientPermissions;
         }
 
@@ -436,7 +433,7 @@ class PaymentTenant extends Command {
     @Override
     StatusMessage execute(Namespace ns, Connection c) throws SQLException {
         this.c = c;
-        if (!verify(false, true)) {
+        if (!verify(false)) {
             return insufficientPermissions;
         }
 
@@ -466,7 +463,7 @@ class AddProject extends Command {
     @Override
     StatusMessage execute(Namespace ns, Connection c) throws SQLException {
         this.c = c;
-        if (!verify(true, true)) {
+        if (!verify(true)) {
             return insufficientPermissions;
         }
 
@@ -522,7 +519,7 @@ class DisableProject extends Command {
     @Override
     StatusMessage execute(Namespace ns, Connection c) throws SQLException {
         this.c = c;
-        if (!verify(true, true)) {
+        if (!verify(true)) {
             return insufficientPermissions;
         }
 
@@ -552,7 +549,7 @@ class MovebudgetProject extends Command {
     @Override
     StatusMessage execute(Namespace ns, Connection c) throws SQLException {
         this.c = c;
-        if (!verify(true, true)) {
+        if (!verify(true)) {
             return insufficientPermissions;
         }
 
@@ -648,7 +645,7 @@ class AddUser extends Command {
     @Override
     StatusMessage execute(Namespace ns, Connection c) throws SQLException {
         this.c = c;
-        if (!verify(true, true)) {
+        if (!verify(true)) {
             return insufficientPermissions;
         }
 
@@ -681,7 +678,7 @@ class DeleteUser extends Command {
     @Override
     StatusMessage execute(Namespace ns, Connection c) throws SQLException {
         this.c = c;
-        if (!verify(true, true)) {
+        if (!verify(true)) {
             return insufficientPermissions;
         }
 
@@ -711,7 +708,7 @@ class SetRate extends Command {
     @Override
     StatusMessage execute(Namespace ns, Connection c) throws SQLException {
         this.c = c;
-        if (!verify(false, true)) {
+        if (!verify(false)) {
             return insufficientPermissions;
         }
 
@@ -731,7 +728,7 @@ class GetRate extends Command {
     @Override
     StatusMessage execute(Namespace ns, Connection c) throws SQLException {
         this.c = c;
-        if (!verify(false, true)) {
+        if (!verify(false)) {
             return insufficientPermissions;
         }
 
@@ -748,7 +745,7 @@ class ListCommand extends Command {
     @Override
     StatusMessage execute(Namespace ns, Connection c) throws SQLException {
         this.c = c;
-        if (!verify(true, true)) {
+        if (!verify(true)) {
             return insufficientPermissions;
         }
 
@@ -953,7 +950,7 @@ class GenerateBill extends Command {
     @Override
     StatusMessage execute(Namespace ns, Connection c) throws SQLException {
         this.c = c;
-        if (!verify(true, true)) {
+        if (!verify(true)) {
             return insufficientPermissions;
         }
 
@@ -1104,7 +1101,7 @@ class AddTenantadmin extends Command {
     @Override
     StatusMessage execute(Namespace ns, Connection c) throws SQLException {
         this.c = c;
-        if (!verify(false, true)) {
+        if (!verify(false)) {
             return insufficientPermissions;
         }
 
@@ -1145,7 +1142,7 @@ class DeleteTenantadmin extends Command {
     @Override
     StatusMessage execute(Namespace ns, Connection c) throws SQLException {
         this.c = c;
-        if (!verify(false, true)) {
+        if (!verify(false)) {
             return insufficientPermissions;
         }
 
