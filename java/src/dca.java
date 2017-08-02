@@ -288,13 +288,13 @@ class WipeSQL extends Command {
         }
 
         Statement s = c.createStatement();
-        s.execute("DROP TABLE tenant");
-        s.execute("DROP TABLE project");
-        s.execute("DROP TABLE payment");
-        s.execute("DROP TABLE transaction");
-        s.execute("DROP TABLE log");
-        s.execute("DROP TABLE rate");
-        s.execute("DROP TABLE role");
+        s.execute("DROP TABLE IF EXISTS tenant");
+        s.execute("DROP TABLE IF EXISTS project");
+        s.execute("DROP TABLE IF EXISTS payment");
+        s.execute("DROP TABLE IF EXISTS transaction");
+        s.execute("DROP TABLE IF EXISTS log");
+        s.execute("DROP TABLE IF EXISTS rate");
+        s.execute("DROP TABLE IF EXISTS role");
         return new StatusMessage();
     }
 }

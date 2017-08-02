@@ -24,8 +24,8 @@
       <file leaf-file-name="dca.java" pinned="false" current-in-tab="true">
         <entry file="file://$PROJECT_DIR$/src/dca.java">
           <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="482">
-              <caret line="324" column="32" lean-forward="false" selection-start-line="324" selection-start-column="32" selection-end-line="324" selection-end-column="32" />
+            <state relative-caret-position="203">
+              <caret line="283" column="50" lean-forward="false" selection-start-line="283" selection-start-column="50" selection-end-line="283" selection-end-column="50" />
               <folding>
                 <element signature="imports" expanded="true" />
               </folding>
@@ -84,6 +84,7 @@
       <find>System.getProperty(&quot;user.name&quot;);</find>
       <find>type</find>
       <find>verify(true, true)</find>
+      <find>DROP TABLE</find>
     </findStrings>
     <replaceStrings>
       <replace>&quot;,</replace>
@@ -103,6 +104,7 @@
       <replace>verify(</replace>
       <replace>username();</replace>
       <replace>verify(true)</replace>
+      <replace>DROP TABLE IF EXISTS</replace>
     </replaceStrings>
   </component>
   <component name="GradleLocalSettings">
@@ -675,8 +677,8 @@
     </entry>
     <entry file="file://$PROJECT_DIR$/src/dca.java">
       <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="482">
-          <caret line="324" column="32" lean-forward="false" selection-start-line="324" selection-start-column="32" selection-end-line="324" selection-end-column="32" />
+        <state relative-caret-position="203">
+          <caret line="283" column="50" lean-forward="false" selection-start-line="283" selection-start-column="50" selection-end-line="283" selection-end-column="50" />
           <folding>
             <element signature="imports" expanded="true" />
           </folding>
