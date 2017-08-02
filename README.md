@@ -119,7 +119,7 @@ There are 4 levels of permissions built into dca. Each user can have any combina
 
 ## Database Schema
 
-Below you can find the dca database schema that is generated after dca is set up.
+In the event of the need to fix a corrupted database, to re-enable a disabled tenant/project, or to access the logs, it is important for a dca administrator to understand the schemas that dca uses. Below you can find the dca database schema that is generated after dca is set up.
 ```
 tenant
 - name VARCHAR(32)
