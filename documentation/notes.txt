@@ -40,8 +40,8 @@ log
 
 role
 - name VARCHAR(32)
-- tenantadmin boolean
-- admin boolean
+- tenantadmin BOOLEAN
+- admin BOOLEAN
 
 t1/t2 valid
 t3/t4 disabled
@@ -294,6 +294,7 @@ OUTPUT:
 Since dca is a RESTful API, it returns a JSON string. Every response has a status field and an error field. The status field will either be success or failed, with the error field being empty on success and containing a reason on failure.
 It may also have other fields. When a bill is generated, the bill is put into its own field: "bill". Same with listing: "list", and getting rate: "rate".
 
+
 COMMAND DETAILS:
 TENANT ADD - self explanatory, you can specify initial credit
 TENANT DISABLE - disables a tenant - does not delete, as its data may be necessary for generating bills. Prevents it from showing up in listings. Asks for confirmation
@@ -316,3 +317,42 @@ TRANSACTION CHARGE - once a job is completed, charge the project. This logs the 
 BILL GENERATE - self explanatory, specify a time period that the bill should be generated for
 
 ROLE ADD/DELETE ADMIN/TENANTADMIN - explained earlier
+
+
+DEMO:
+./dca wipe
+
+./dca setup
+
+./dca tenant add -t t1
+./dca tenant disable -t t1
+./dca tenant add -t t2
+./dca tenant modify -t t2 -c 100
+./dca tenant payment -t t2 -p 100
+
+./dca project add -t t2 -p p1
+./dca project movebudget --from t2 --to p1 --type t2p --balance 100 --credit 100
+
+./dca user add -p p1 -u u1
+
+./dca list
+./dca list -u u1
+./dca list -p p1
+./dca list -t t2
+
+./dca rate set -r 3600
+
+su - u1
+./dca transaction reservebudget -p p1 -e 20
+logout
+
+./dca list
+
+su - u1
+./dca transaction charge -p p1 -e 20 -j 20 -s "2017-08-02 15:08:00"
+logout
+
+./dca list
+./dca bill generate -p p1 --time_period last_day
+
+./dca list -m
