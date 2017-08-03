@@ -6,13 +6,15 @@ This README has been revised after dca was rewritten for Java and MySQL.
 
 dca is an accounting service that allows distributed computing systems to keep track of job processing hours used by users and charges the respective tenant. Originally written in Python and using Elasticsearch as a database system, it has been rewritten in Java using a MySQL database to increase performance and security. It is meant to be used in conjunction with a backend transactions system and optionally a web-based interface for viewing transactions and bills. dca is a CLI and outputs as a RESTful API.
 
+dca operates on a prepaid system - organizations that use the system communicate with admins to see how much computing time they may need and negotiate a price. The organizations (tenants) are given that much money in the system by the admin, registered as a payment, and a percent of that is given as credit as well in case they overuse. At the end of the term, a bill can be generated and the organization is billed for what they owe.
+
 Unlike traditional payment services like Venmo, and similar to most distributed computing systems, dca uses a tenant-project-user hierarchy. Tenants make payments, create projects and assign users to each project, and tenants are billed for the computing time their users use. dca has the ability to track the usage of budget on a per-user basis, and create a bill for the administrator that overviews how much each user spent each day. On top of having a basic budget system, dca also has a credit system that allows an administrator to dispense credit to tenants who may have underused their budget one month and require more the next. dca also has a permissions system 
 
 It is important to identify what dca is not. dca does not actually bill any financial accounts. dca is not a persistent background service, it is more like an interface between the user and a database.
 
 ## Setup
 
-To use dca, Java 1.8.0 and MySQL-server need to be installed.
+To use dca, Java 1.8.0 and a MySQL server need to be installed.
 
 __On Windows__, the links are:
 ```
@@ -93,7 +95,7 @@ dca transaction charge -p|--project=<name> -e|--estimate=<time> -j|--jobtime=<ti
 ```
 Generating a bill:
 ```
-dca bill generate -p|--project=<name> --time_period=last_day|last_week|last_month|<date>,<date>
+dca bill generate -t|--tenant=<name> --time_period=last_day|last_week|last_month|<date>,<date>
 ```
 
 There are restrictions and guidelines to what the argument values can be. All restrictions are listed below.
@@ -155,6 +157,7 @@ project
 - d BOOLEAN
 
 transaction
+- tenant VARCHAR(32)
 - project VARCHAR(32)
 - user VARCHAR(32)
 - start DATETIME
