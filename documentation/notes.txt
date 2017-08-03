@@ -17,6 +17,7 @@ project
 - d BOOLEAN
 
 transaction
+- tenant VARCHAR(32)
 - project VARCHAR(32)
 - user VARCHAR(32)
 - start DATETIME
@@ -260,9 +261,10 @@ transaction testing
 
 WHAT IS DCA?
 dca stands for distributed computing accounting - it's a payment logging service that allows administrators of distributed computing systems to charge and log transactions that users make.
-It's like PayPal except without the actual charging accounts part - it'll log all transactions and keep balances
-It's meant to 
-There is a credit system in place that allows admins to give tenants/projects free credit
+It operates on a prepaid system - organizations that use the system communicate with admins to see how much computing time they may need and calculate a price based off that. Ex. $100k
+They are given that much money in the system by the admin, registered as a payment, and a percent of that is given as credit as well in case they overuse
+At the end of the term (week, month, w/e), a bill in generated and they are charged for that much.
+kind of like a cell phone prepaid plan
 
 WHAT (IS THE STRUCTURE)?
 Starting from the top, tenants are the largest entity: they own multiple projects and are responsible for distributing money to their projects.
@@ -276,6 +278,9 @@ TENANTADMIN - tenantadmins are allowed to run PROJECT, USER, LIST, and BILL comm
 USER - can only run TRANSACTION commands
 permissions are based off linux username
 
+ADMIN/TENANTADMIN roles are assigned by roles above theirs using the ROLE ADD command
+USER roles are tied to projects, and can be assigned by any other ROLE using the USER ADD command
+
 LIFECYCLE:
 Admins make new tenants, add some payments, tenantadmins make new projects, users use computing time and make transactions.
 
@@ -283,16 +288,13 @@ TECHNICAL DETAILS?
 Originally written in Python & using elasticsearch, moved to Java and MySQL
 All data is stored in a database - default username and password are "root" and "password"
 
-
-ADMIN/TENANTADMIN roles are assigned by roles above theirs using the ROLE ADD command
-USER roles are tied to projects, and can be assigned by any other ROLE using the USER ADD command
-
 LOGGING:
 Every command run is logged with its parameters with the exception of RATE GET, listing, bill generation, and transactional commands - the first three because they do not make edits, and the latter because it is a high volume command.
 
 OUTPUT:
 Since dca is a RESTful API, it returns a JSON string. Every response has a status field and an error field. The status field will either be success or failed, with the error field being empty on success and containing a reason on failure.
 It may also have other fields. When a bill is generated, the bill is put into its own field: "bill". Same with listing: "list", and getting rate: "rate".
+Output can be pretty printed (JSON looks nice) or mini-printed when space is an issue
 
 
 COMMAND DETAILS:
@@ -330,8 +332,12 @@ DEMO:
 ./dca tenant modify -t t2 -c 100
 ./dca tenant payment -t t2 -p 100
 
+./dca list
+
 ./dca project add -t t2 -p p1
 ./dca project movebudget --from t2 --to p1 --type t2p --balance 100 --credit 100
+
+./dca list
 
 ./dca user add -p p1 -u u1
 
@@ -343,7 +349,7 @@ DEMO:
 ./dca rate set -r 3600
 
 su - u1
-./dca transaction reservebudget -p p1 -e 20
+./dca transaction reservebudget -p p1 -e 30
 logout
 
 ./dca list
@@ -356,3 +362,11 @@ logout
 ./dca bill generate -p p1 --time_period last_day
 
 ./dca list -m
+
+su - u1
+./dca list --------- ERROR
+logout
+
+./dca role add tenantadmin -u tenantadmin
+./dca role add admin -u admin
+

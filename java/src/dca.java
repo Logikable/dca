@@ -316,8 +316,8 @@ class SetupSQL extends Command {
         create("tenant", "name VARCHAR(32),balance FLOAT,credit FLOAT,projects VARCHAR(4096),d BOOLEAN");
         create("project", "tenant VARCHAR(32),project VARCHAR(32),balance FLOAT,credit FLOAT,"
                 + "requested FLOAT,rate FLOAT,users VARCHAR(4096),d BOOLEAN");
-        create("transaction", "project VARCHAR(32),user VARCHAR(32),start DATETIME,end DATETIME,"
-                + "runtime INT,cost FLOAT");
+        create("transaction", "tenant VARCHAR(32),project VARCHAR(32),user VARCHAR(32),start DATETIME,"
+                + "end DATETIME,runtime INT,cost FLOAT");
         create("payment", "tenant VARCHAR(32),date DATETIME,payment FLOAT");
         create("rate", "rate FLOAT");
         create("log", "category VARCHAR(32),action VARCHAR(32),details VARCHAR(4096),date DATETIME");
@@ -937,9 +937,9 @@ class ChargeTransaction extends Command {
                         + ",credit=" + newProjectCredit, "project='" + project + "'");
         update("tenant", "balance=" + newTenantBal + ",credit=" + newTenantCredit,
                 "name='" + tenant + "'");
-        insert("transaction", "project,user,start,end,runtime,cost", "'" + project + "','" + user
-                + "','" + startDate.format(format) + "','" + startDate.plusSeconds(jobtime).format(format) + "',"
-                + jobtime + "," + cost);
+        insert("transaction", "tenant,project,user,start,end,runtime,cost", "'" + tenant + "','"
+                + project + "','" + user + "','" + startDate.format(format) + "','"
+                + startDate.plusSeconds(jobtime).format(format) + "'," + jobtime + "," + cost);
         return new StatusMessage();
     }
 }
@@ -952,10 +952,10 @@ class GenerateBill extends Command {
             return insufficientPermissions;
         }
 
-        String project = ns.getString("project");
-        ResultSet projectRS = select("project", "project='" + project + "'");
-        if (!projectRS.next()) {
-            return new StatusMessage("project does not exist");
+        String tenant = ns.getString("tenant");
+        ResultSet tenantRS = select("tenant", "name='" + tenant + "'");
+        if (!tenantRS.next()) {
+            return new StatusMessage("tenant does not exist");
         }
 
         LocalDateTime now = now();
@@ -979,18 +979,14 @@ class GenerateBill extends Command {
             start = now.minusDays(30);
             end = now;
         } else {
-            return new StatusMessage("invalid date");
+            return new StatusMessage("invalid time period");
         }
 
-        String tenant = projectRS.getString("tenant");
-        ResultSet tenantRS = select("tenant", "name='" + tenant + "'");
-        ResultSet transactionRS = select("transaction", "project='" + project + "' AND end>='"
+        float balance = tenantRS.getFloat("balance");
+        ResultSet transactionRS = select("transaction", "tenant='" + tenant + "' AND end>='"
                 + start.format(format) + "'");
         ResultSet paymentRS = select("payment", "tenant='" + tenant + "' AND date>='"
                 + start.format(format) + "'");
-
-        tenantRS.next();
-        float balance = tenantRS.getFloat("balance");
 
         // sum of transactions/payments after the date range specified
         HashSet<String> uniqueDates = new HashSet<>();
@@ -999,12 +995,12 @@ class GenerateBill extends Command {
         float postTransactionTotal = 0, postPaymentTotal = 0;
 
         while (transactionRS.next()) {
-            LocalDateTime transactionEnd = toDateTime(transactionRS.getTimestamp("end"));
+            LocalDateTime transactionEnd = toDateTime(transactionRS.getString("end"));
             if (transactionEnd.isAfter(end)) {
                 postTransactionTotal += transactionRS.getFloat("cost");
             } else {
-                uniqueDates.add(transactionEnd.format(billFormat));
                 rangeTransactionTotal += transactionRS.getFloat("cost");
+                uniqueDates.add(transactionEnd.format(billFormat));
             }
         }
         while (paymentRS.next()) {
@@ -1018,7 +1014,7 @@ class GenerateBill extends Command {
         float endingBal = balance - postPaymentTotal + postTransactionTotal;
         float startingBal = endingBal - rangePaymentTotal + rangeTransactionTotal;
 
-        HashMap<String, HashMap<String, Float>> bill = new HashMap<>();
+        HashMap<String, HashMap<String, HashMap<String, Float>>> bill = new HashMap<>();
 
         for (String date : uniqueDates) {
             bill.put(date, new HashMap<>());
@@ -1033,12 +1029,25 @@ class GenerateBill extends Command {
                 totalHours += runtime;
                 totalCost += transactionRS.getFloat("cost");
 
+                String project = transactionRS.getString("project");
                 String user = transactionRS.getString("user");
-                HashMap<String, Float> activities = bill.get(transactionEnd.format(billFormat));
-                if (activities.containsKey(user)) {
-                    activities.put(user, activities.get(user) + runtime);
+                HashMap<String, HashMap<String, Float>> projectsMap = bill.get(transactionEnd.format(billFormat));
+
+                if (projectsMap.containsKey(project)) {
+                    HashMap<String, Float> activities = projectsMap.get(project);
+                    if (activities.containsKey(user)) {
+                        activities.put(user, activities.get(user) + runtime);
+                    } else {
+                        activities.put(user, runtime);
+                    }
                 } else {
-                    activities.put(user, runtime);
+                    HashMap<String, Float> activities = new HashMap<>();
+                    projectsMap.put(project, activities);
+                    if (activities.containsKey(user)) {
+                        activities.put(user, activities.get(user) + runtime);
+                    } else {
+                        activities.put(user, runtime);
+                    }
                 }
             }
         }
@@ -1046,12 +1055,16 @@ class GenerateBill extends Command {
         // converting bill to json
         JsonArrayBuilder billBuilder = Json.createArrayBuilder();
         for (String date : bill.keySet()) {
-            HashMap<String, Float> activities = bill.get(date);
+            HashMap<String, HashMap<String, Float>> projectMap = bill.get(date);
             JsonArrayBuilder activitiesBuilder = Json.createArrayBuilder();
-            for (String user : activities.keySet()) {
-                activitiesBuilder.add(Json.createObjectBuilder()
-                        .add("user", user)
-                        .add("hours", round(activities.get(user))));        // rounding values
+            for (String project : projectMap.keySet()) {
+                HashMap<String, Float> activities = projectMap.get(project);
+                for (String user : activities.keySet()) {
+                    activitiesBuilder.add(Json.createObjectBuilder()
+                            .add("project", project)
+                            .add("user", user)
+                            .add("hours", round(activities.get(user))));        // rounding values
+                }
             }
             billBuilder.add(Json.createObjectBuilder()
                     .add("date", date)
@@ -1061,7 +1074,6 @@ class GenerateBill extends Command {
         return new StatusMessage(Json.createObjectBuilder()
                 .add("bill", Json.createObjectBuilder()
                         .add("tenant", tenant)
-                        .add("project", project)
                         .add("from", start.format(format))
                         .add("to", end.format(format))
                         .add("bill", billBuilder)
@@ -1071,6 +1083,132 @@ class GenerateBill extends Command {
                         .add("payments", round(rangePaymentTotal))
                         .add("ebalance", round(endingBal))));
     }
+//    @Override
+//    StatusMessage execute(Namespace ns, Connection c) throws SQLException {
+//        this.c = c;
+//        if (!verify(true)) {
+//            return insufficientPermissions;
+//        }
+//
+//        String project = ns.getString("project");
+//        ResultSet projectRS = select("project", "project='" + project + "'");
+//        if (!projectRS.next()) {
+//            return new StatusMessage("project does not exist");
+//        }
+//
+//        LocalDateTime now = now();
+//        LocalDateTime start, end;
+//
+//        String timePeriod = ns.getString("timePeriod");
+//        String[] dates = timePeriod.split(",");
+//        if (dates.length == 2) {
+//            if (!isDate(dates[0]) || !isDate(dates[1])) {
+//                return new StatusMessage("invalid date format");
+//            }
+//            start = toDate(dates[0]);
+//            end = toDate(dates[1]);
+//        } else if (timePeriod.equalsIgnoreCase("last_day")) {
+//            start = now.minusDays(1);
+//            end = now;
+//        } else if (timePeriod.equalsIgnoreCase("last_week")) {
+//            start = now.minusDays(7);
+//            end = now;
+//        } else if (timePeriod.equalsIgnoreCase("last_month")) {
+//            start = now.minusDays(30);
+//            end = now;
+//        } else {
+//            return new StatusMessage("invalid date");
+//        }
+//
+//        String tenant = projectRS.getString("tenant");
+//        ResultSet tenantRS = select("tenant", "name='" + tenant + "'");
+//        ResultSet transactionRS = select("transaction", "project='" + project + "' AND end>='"
+//                + start.format(format) + "'");
+//        ResultSet paymentRS = select("payment", "tenant='" + tenant + "' AND date>='"
+//                + start.format(format) + "'");
+//
+//        tenantRS.next();
+//        float balance = tenantRS.getFloat("balance");
+//
+//        // sum of transactions/payments after the date range specified
+//        HashSet<String> uniqueDates = new HashSet<>();
+//        float rangeTransactionTotal = 0, rangePaymentTotal = 0;
+//        // sum of transactions/payments after the date range specified (but before today)
+//        float postTransactionTotal = 0, postPaymentTotal = 0;
+//
+//        while (transactionRS.next()) {
+//            LocalDateTime transactionEnd = toDateTime(transactionRS.getTimestamp("end"));
+//            if (transactionEnd.isAfter(end)) {
+//                postTransactionTotal += transactionRS.getFloat("cost");
+//            } else {
+//                uniqueDates.add(transactionEnd.format(billFormat));
+//                rangeTransactionTotal += transactionRS.getFloat("cost");
+//            }
+//        }
+//        while (paymentRS.next()) {
+//            if (toDateTime(paymentRS.getTimestamp("date")).isAfter(end)) {
+//                postPaymentTotal += paymentRS.getFloat("payment");
+//            } else {
+//                rangePaymentTotal += paymentRS.getFloat("payment");
+//            }
+//        }
+//
+//        float endingBal = balance - postPaymentTotal + postTransactionTotal;
+//        float startingBal = endingBal - rangePaymentTotal + rangeTransactionTotal;
+//
+//        HashMap<String, HashMap<String, Float>> bill = new HashMap<>();
+//
+//        for (String date : uniqueDates) {
+//            bill.put(date, new HashMap<>());
+//        }
+//
+//        float totalCost = 0f, totalHours = 0f;
+//        transactionRS.beforeFirst();        // allows us to loop through result set twice
+//        while (transactionRS.next()) {
+//            LocalDateTime transactionEnd = toDateTime(transactionRS.getTimestamp("end"));
+//            if (transactionEnd.isBefore(end)) {
+//                float runtime = transactionRS.getFloat("runtime") / 3600;
+//                totalHours += runtime;
+//                totalCost += transactionRS.getFloat("cost");
+//
+//                String user = transactionRS.getString("user");
+//                HashMap<String, Float> activities = bill.get(transactionEnd.format(billFormat));
+//                if (activities.containsKey(user)) {
+//                    activities.put(user, activities.get(user) + runtime);
+//                } else {
+//                    activities.put(user, runtime);
+//                }
+//            }
+//        }
+//
+//        // converting bill to json
+//        JsonArrayBuilder billBuilder = Json.createArrayBuilder();
+//        for (String date : bill.keySet()) {
+//            HashMap<String, Float> activities = bill.get(date);
+//            JsonArrayBuilder activitiesBuilder = Json.createArrayBuilder();
+//            for (String user : activities.keySet()) {
+//                activitiesBuilder.add(Json.createObjectBuilder()
+//                        .add("user", user)
+//                        .add("hours", round(activities.get(user))));        // rounding values
+//            }
+//            billBuilder.add(Json.createObjectBuilder()
+//                    .add("date", date)
+//                    .add("activity", activitiesBuilder));
+//        }
+//
+//        return new StatusMessage(Json.createObjectBuilder()
+//                .add("bill", Json.createObjectBuilder()
+//                        .add("tenant", tenant)
+//                        .add("project", project)
+//                        .add("from", start.format(format))
+//                        .add("to", end.format(format))
+//                        .add("bill", billBuilder)
+//                        .add("total_hours", round(totalHours))
+//                        .add("total_cost", round(totalCost))
+//                        .add("bbalance", round(startingBal))
+//                        .add("payments", round(rangePaymentTotal))
+//                        .add("ebalance", round(endingBal))));
+//    }
 }
 
 class AddAdmin extends Command {
@@ -1401,10 +1539,14 @@ public class dca {
 
         Subparser generateBillParser = billSubparsers.addParser("generate").help("Generating bills.");
         generateBillParser.setDefault("cmd", new GenerateBill());
-        generateBillParser.addArgument("-p", "--project")
+        generateBillParser.addArgument("-t", "--tenant")
                 .type(String.class)
-                .metavar("PROJECT")
+                .metavar("TENANT")
                 .required(true);
+//        generateBillParser.addArgument("-p", "--project")
+//                .type(String.class)
+//                .metavar("PROJECT")
+//                .required(true);
         generateBillParser.addArgument("--time_period")
                 .dest("timePeriod")
                 .type(String.class)
