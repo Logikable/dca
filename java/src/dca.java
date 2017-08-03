@@ -995,7 +995,7 @@ class GenerateBill extends Command {
         float postTransactionTotal = 0, postPaymentTotal = 0;
 
         while (transactionRS.next()) {
-            LocalDateTime transactionEnd = toDateTime(transactionRS.getString("end"));
+            LocalDateTime transactionEnd = toDateTime(transactionRS.getTimestamp("end"));
             if (transactionEnd.isAfter(end)) {
                 postTransactionTotal += transactionRS.getFloat("cost");
             } else {
@@ -1043,11 +1043,7 @@ class GenerateBill extends Command {
                 } else {
                     HashMap<String, Float> activities = new HashMap<>();
                     projectsMap.put(project, activities);
-                    if (activities.containsKey(user)) {
-                        activities.put(user, activities.get(user) + runtime);
-                    } else {
-                        activities.put(user, runtime);
-                    }
+                    activities.put(user, runtime);
                 }
             }
         }
