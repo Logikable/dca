@@ -335,7 +335,7 @@ DEMO:
 ./dca list
 
 ./dca project add -t t2 -p p1
-./dca project movebudget --from t2 --to p1 --type t2p --balance 100 --credit 100
+./dca project movebudget --from t2 --to p1 --type t2p -b 100 -c 100
 
 ./dca list
 
@@ -355,11 +355,11 @@ logout
 ./dca list
 
 su - u1
-./dca transaction charge -p p1 -e 30 -j 30 -s "2017-08-02 15:08:00"
+./dca transaction charge -p p1 -e 30 -j 30 -s "2017-08-04 10:15:00"
 logout
 
 ./dca list
-./dca bill generate -p p1 --time_period last_day
+./dca bill generate -t t2 --time_period last_day
 
 ./dca list -m
 
