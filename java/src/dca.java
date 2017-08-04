@@ -322,7 +322,7 @@ class SetupSQL extends Command {
         create("rate", "rate FLOAT");
         create("log", "category VARCHAR(32),action VARCHAR(32),details VARCHAR(4096),date DATETIME");
         create("role", "name VARCHAR(32),tenantadmin BOOLEAN,admin BOOLEAN");
-        insert("rate", "rate", "0");
+        insert("rate", "rate", "3600");
 
         return new StatusMessage();
     }
@@ -897,7 +897,7 @@ class ChargeTransaction extends Command {
         float currentRequested = rs.getFloat("requested");
 
         if (estimate > currentRequested) {
-            return new StatusMessage("less than the estimate has been requested for this project");
+            return new StatusMessage("the amount requested by this project is less than the estimate");
         }
 
         float cost = rate * jobtime / 3600;
