@@ -949,11 +949,11 @@ class ChargeTransaction extends Command {
         }
 
         String tenant = projectRS.getString("tenant");
-        projectRS = select("tenant", "name='" + tenant + "'");
-        projectRS.next();
+        ResultSet tenantRS = select("tenant", "name='" + tenant + "'");
+        tenantRS.next();
 
-        balance = projectRS.getFloat("balance");
-        credit = projectRS.getFloat("credit");
+        balance = tenantRS.getFloat("balance");
+        credit = tenantRS.getFloat("credit");
         float newTenantBal, newTenantCredit;
         if (cost <= balance) {
             newTenantBal = balance - cost;
@@ -967,7 +967,7 @@ class ChargeTransaction extends Command {
         }
 
         LocalDateTime startDate = toDateTime(start);
-        update("project", "requested=" + (projectRS.getFloat("total_requested") - requested)
+        update("project", "total_requested=" + (projectRS.getFloat("total_requested") - requested)
                 + ",balance=" + newProjectBal + ",credit=" + newProjectCredit, "project='" + project + "'");
         update("tenant", "balance=" + newTenantBal + ",credit=" + newTenantCredit,
                 "name='" + tenant + "'");
