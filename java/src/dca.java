@@ -238,13 +238,13 @@ abstract class Command {
                 .add("users", userJsonBuilder);
     }
     JsonArrayBuilder usersBuilder(ResultSet rs) throws SQLException {
-        JsonArrayBuilder usersBuilder = Json.createArrayBuilder();
+        JsonArrayBuilder usersJsonBuilder = Json.createArrayBuilder();
         while (rs.next()) {
-            usersBuilder.add(Json.createObjectBuilder()
+            usersJsonBuilder.add(Json.createObjectBuilder()
                     .add("name", rs.getString("user"))
                     .add("requested", round(rs.getFloat("requested"))));
         }
-        return usersBuilder;
+        return usersJsonBuilder;
     }
     // Converts from csv (comma-separated values) string to a List
     ArrayList<String> fromCSV(String s) {
