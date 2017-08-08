@@ -110,6 +110,55 @@ There are restrictions and guidelines to what the argument values can be. All re
 * The start time must be in the format YYYY-MM-DD HH:mm:ss, or a Unix epoch value.
 * `time_period` (if a default one is not chosen) must be two dates in the format YYYY-MM-DD.
 
+### Output
+
+dca outputs a JSON string that by default is pretty printed (newlines and tabs added for readability), but can be set to mini print mode using the flag `-m`. The JSON will always contain a `status` value, set to either `success` or `failed`, and an error value, set to either `no error` or the error's description. If a command that should produce output is run, a third value is added. The different formats can be found below:
+
+`dca rate get`: A `rate` tag is added, with the value of the rate.
+
+`dca list`: A `list` tag is added with the following structure:
+```
+[{
+  name:
+  balance:
+  credit:
+  projects: [{
+    tenant:
+    project:
+    balance:
+    credit:
+    total_requested:
+    rate:
+    users: [{
+      name:
+      requested:
+    }, {...}]
+  }, {...}]
+}, {...}]
+```
+
+`dca bill generate`: A `bill` tag is added with the following structure:
+```
+[{
+  tenant:
+  from:
+  to:
+  bill: [{
+    date:
+    activity: [{
+      project:
+      user:
+      hours:
+    }, {...}]
+  }, {...}]
+  total_hours:
+  total_cost:
+  bbalance:
+  payments:
+  ebalance:
+}, {...}]
+```
+
 ### Permissions
 
 There are 4 levels of permissions built into dca. Each user can have any combination of them (with the exception of root).
@@ -151,10 +200,15 @@ project
 - project VARCHAR(32)
 - balance FLOAT
 - credit FLOAT
-- requested FLOAT
+- total_requested FLOAT
 - rate FLOAT
 - users VARCHAR(4096)
 - d BOOLEAN
+
+requested
+- project VARCHAR(32)
+- user VARCHAR(32)
+- requested FLOAT
 
 transaction
 - tenant VARCHAR(32)
