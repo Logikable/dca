@@ -849,14 +849,14 @@ class ReservebudgetTransaction extends Command {
         this.c = c;
 
         String project = ns.getString("project");
-        ResultSet rs = select("project", "project='" + project + "'");
-        if (!rs.next()) {
+        ResultSet projectRS = select("project", "project='" + project + "'");
+        if (!projectRS.next()) {
             return new StatusMessage("project does not exist");
         }
-        if (rs.getBoolean("d")) {
+        if (projectRS.getBoolean("d")) {
             return new StatusMessage("project is disabled");
         }
-        if (!verify(rs)) {
+        if (!verify(projectRS)) {
             return insufficientPermissions;
         }
 
@@ -865,16 +865,21 @@ class ReservebudgetTransaction extends Command {
             return new StatusMessage("invalid estimate");
         }
 
-        float totalRequested = rs.getFloat("total_requested");
-        float cost = rs.getFloat("rate") * estimate / 3600; // rate is in hours, estimate is in seconds
-        if (rs.getFloat("balance") + rs.getFloat("credit") - totalRequested < cost) {
+        float totalRequested = projectRS.getFloat("total_requested");
+        float cost = projectRS.getFloat("rate") * estimate / 3600; // rate is in houprojectRS, estimate is in seconds
+        if (projectRS.getFloat("balance") + projectRS.getFloat("credit") - totalRequested < cost) {
             return new StatusMessage("insufficient project budget");
         }
 
         String user = username();
+        ArrayList<String> users = fromCSV(projectRS.getString("users"));
+        if (!caseInsensitiveContains(users, user)) {
+            return new StatusMessage("project does not contain this user");
+        }
+
         ResultSet requestedRS = select("requested", "project='" + project + "' AND user='" + user + "'");
         requestedRS.next();
-        update("requested", "requested=" + requestedRS.getFloat("requested") + cost,
+        update("requested", "requested=" + (requestedRS.getFloat("requested") + cost),
                 "project='" + project + "' AND user='" + user + "'");
         update("project", "total_requested=" + (totalRequested + cost), "project='" + project + "'");
         return new StatusMessage();
