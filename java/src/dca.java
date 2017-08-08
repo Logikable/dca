@@ -873,6 +873,7 @@ class ReservebudgetTransaction extends Command {
 
         String user = username();
         ResultSet requestedRS = select("requested", "project='" + project + "' AND user='" + user + "'");
+        requestedRS.next();
         update("requested", "requested=" + requestedRS.getFloat("requested") + cost,
                 "project='" + project + "' AND user='" + user + "'");
         update("project", "total_requested=" + (totalRequested + cost), "project='" + project + "'");
