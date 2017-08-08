@@ -917,8 +917,8 @@ class ChargeTransaction extends Command {
         }
 
         String user = username();
-        ArrayList<String> useprojectRS = fromCSV(projectRS.getString("useprojectRS"));
-        if (!caseInsensitiveContains(useprojectRS, user)) {
+        ArrayList<String> users = fromCSV(projectRS.getString("users"));
+        if (!caseInsensitiveContains(users, user)) {
             return new StatusMessage("project does not contain this user");
         }
 

@@ -24,8 +24,8 @@
       <file leaf-file-name="dca.java" pinned="false" current-in-tab="true">
         <entry file="file://$PROJECT_DIR$/src/dca.java">
           <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="792">
-              <caret line="910" column="9" lean-forward="true" selection-start-line="910" selection-start-column="9" selection-end-line="910" selection-end-column="9" />
+            <state relative-caret-position="288">
+              <caret line="920" column="52" lean-forward="true" selection-start-line="920" selection-start-column="52" selection-end-line="920" selection-end-column="52" />
               <folding>
                 <element signature="imports" expanded="true" />
               </folding>
@@ -57,7 +57,6 @@
   </component>
   <component name="FindInProjectRecents">
     <findStrings>
-      <find>&quot; },</find>
       <find>implements</find>
       <find>fromBalance</find>
       <find>projectBalance</find>
@@ -87,6 +86,7 @@
       <find>requested</find>
       <find>select</find>
       <find>rs</find>
+      <find>useprojectRS</find>
     </findStrings>
     <replaceStrings>
       <replace>&quot;,</replace>
@@ -769,8 +769,8 @@
     </entry>
     <entry file="file://$PROJECT_DIR$/src/dca.java">
       <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="792">
-          <caret line="910" column="9" lean-forward="true" selection-start-line="910" selection-start-column="9" selection-end-line="910" selection-end-column="9" />
+        <state relative-caret-position="288">
+          <caret line="920" column="52" lean-forward="true" selection-start-line="920" selection-start-column="52" selection-end-line="920" selection-end-column="52" />
           <folding>
             <element signature="imports" expanded="true" />
           </folding>
