@@ -375,3 +375,12 @@ logout
 ./dca role add tenantadmin -u tenantadmin
 ./dca role add admin -u admin
 
+
+./dca wipe
+./dca setup
+./dca tenant add -t t2 -c 10
+./dca tenant payment -t t2 -p 100
+./dca project add -t t2 -p p1 -b 100 -c 10
+./dca user add -p p1 -u u1
+./dca transaction reservebudget -p p1 -e 30
+./dca transaction charge -p p1 -e 30 -j 30 -s "2017-08-08 09:00:00"
