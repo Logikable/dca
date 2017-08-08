@@ -11,10 +11,15 @@ project
 - project VARCHAR(32)
 - balance FLOAT	
 - credit FLOAT
-- requested FLOAT
+- total_requested FLOAT
 - rate FLOAT
 - users VARCHAR(4096)
 - d BOOLEAN
+
+requested
+- project VARCHAR(32)
+- user VARCHAR(32)
+- requested FLOAT
 
 transaction
 - tenant VARCHAR(32)

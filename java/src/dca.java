@@ -1,5 +1,6 @@
 import net.sourceforge.argparse4j.ArgumentParsers;
 import net.sourceforge.argparse4j.inf.ArgumentParser;
+import net.sourceforge.argparse4j.inf.ArgumentParserException;
 import net.sourceforge.argparse4j.inf.Namespace;
 import net.sourceforge.argparse4j.inf.Subparser;
 import net.sourceforge.argparse4j.inf.Subparsers;
@@ -222,26 +223,28 @@ abstract class Command {
     JsonObjectBuilder tenantBuilder(ResultSet rs, JsonArrayBuilder projectJsonBuilder) throws SQLException {
         return Json.createObjectBuilder()
                 .add("name", rs.getString("name"))
-                .add("balance", rs.getFloat("balance"))
-                .add("credit", rs.getFloat("credit"))
+                .add("balance", round(rs.getFloat("balance")))
+                .add("credit", round(rs.getFloat("credit")))
                 .add("projects", projectJsonBuilder);
     }
-    JsonObjectBuilder projectBuilder(ResultSet rs, ArrayList<String> users) throws SQLException {
+    JsonObjectBuilder projectBuilder(ResultSet rs, JsonArrayBuilder userJsonBuilder) throws SQLException {
         return Json.createObjectBuilder()
                 .add("tenant", rs.getString("tenant"))
                 .add("project", rs.getString("project"))
-                .add("balance", rs.getFloat("balance"))
-                .add("credit", rs.getFloat("credit"))
-                .add("requested", rs.getFloat("requested"))
-                .add("rate", rs.getFloat("rate"))
-                .add("users", usersBuilder(users));
+                .add("balance", round(rs.getFloat("balance")))
+                .add("credit", round(rs.getFloat("credit")))
+                .add("total_requested", round(rs.getFloat("total_requested")))
+                .add("rate", round(rs.getFloat("rate")))
+                .add("users", userJsonBuilder);
     }
-    private JsonArrayBuilder usersBuilder(ArrayList<String> users) {
-        JsonArrayBuilder userJsonBuilder = Json.createArrayBuilder();
-        for (String user : users) {
-            userJsonBuilder.add(user);
+    JsonArrayBuilder usersBuilder(ResultSet rs) throws SQLException {
+        JsonArrayBuilder usersBuilder = Json.createArrayBuilder();
+        while (rs.next()) {
+            usersBuilder.add(Json.createObjectBuilder()
+                    .add("name", rs.getString("user"))
+                    .add("requested", round(rs.getFloat("requested"))));
         }
-        return userJsonBuilder;
+        return usersBuilder;
     }
     // Converts from csv (comma-separated values) string to a List
     ArrayList<String> fromCSV(String s) {
@@ -273,6 +276,9 @@ abstract class Command {
     void update(String table, String columns, String condition) throws SQLException {
         c.createStatement().executeUpdate("UPDATE " + table + " SET " + columns + " WHERE " + condition);
     }
+    void delete(String table, String condition) throws SQLException {
+        c.createStatement().execute("DELETE FROM " + table + " WHERE " + condition);
+    }
     void log(String category, String action, String details) throws SQLException {
         insert("log", "category,action,details,date", "'" + category + "','" + action
                         + "','" + details + "','" + nowString() + "'");
@@ -290,6 +296,7 @@ class WipeSQL extends Command {
         Statement s = c.createStatement();
         s.execute("DROP TABLE IF EXISTS tenant");
         s.execute("DROP TABLE IF EXISTS project");
+        s.execute("DROP TABLE IF EXISTS requested");
         s.execute("DROP TABLE IF EXISTS payment");
         s.execute("DROP TABLE IF EXISTS transaction");
         s.execute("DROP TABLE IF EXISTS log");
@@ -315,7 +322,8 @@ class SetupSQL extends Command {
         }
         create("tenant", "name VARCHAR(32),balance FLOAT,credit FLOAT,projects VARCHAR(4096),d BOOLEAN");
         create("project", "tenant VARCHAR(32),project VARCHAR(32),balance FLOAT,credit FLOAT,"
-                + "requested FLOAT,rate FLOAT,users VARCHAR(4096),d BOOLEAN");
+                + "total_requested FLOAT,rate FLOAT,users VARCHAR(4096),d BOOLEAN");
+        create("requested", "project VARCHAR(32),user VARCHAR(32),requested FLOAT");
         create("transaction", "tenant VARCHAR(32),project VARCHAR(32),user VARCHAR(32),start DATETIME,"
                 + "end DATETIME,runtime INT,cost FLOAT");
         create("payment", "tenant VARCHAR(32),date DATETIME,payment FLOAT");
@@ -382,7 +390,7 @@ class DisableTenant extends Command {
 
         ResultSet projectRS = select("project", "tenant='" + tenant + "'");
         while (projectRS.next()) {
-            if (projectRS.getFloat("requested") != 0) {
+            if (projectRS.getFloat("total_requested") != 0) {
                 return new StatusMessage("tenant has a project with pending transactions");
             }
         }
@@ -507,7 +515,7 @@ class AddProject extends Command {
         ArrayList<String> projects = fromCSV(tenantRS.getString("projects"));
         projects.add(project);
         update("tenant", "projects='" + toCSV(projects) + "'", "name='" + tenant + "'");
-        insert("project", "tenant,project,balance,credit,requested,rate,users,d",
+        insert("project", "tenant,project,balance,credit,total_requested,rate,users,d",
                 "'" + tenant + "','" + project + "'," + balance + "," + credit + ",0.0," + rate + ",'',false");
         log("project", "add", "project: " + project + ", tenant: " + tenant
                 + ", balance: " + balance + ", credit: " + credit);
@@ -535,7 +543,7 @@ class DisableProject extends Command {
         if (rs.getBoolean("d")) {
             return new StatusMessage("project is already disabled");
         }
-        if (rs.getFloat("requested") != 0) {
+        if (rs.getFloat("total_requested") != 0) {
             return new StatusMessage("project cannot be disabled: pending transaction");
         }
 
@@ -669,6 +677,7 @@ class AddUser extends Command {
 
         users.add(user);
         update("project", "users='" + toCSV(users) + "'", "project='" + project +"'");
+        insert("requested", "project,user,requested", "'" + project + "','" + user + "',0");
         log("user", "add", "project: " + project + ", user: " + user);
         return new StatusMessage();
     }
@@ -697,8 +706,17 @@ class DeleteUser extends Command {
             return new StatusMessage("project does not have this user");
         }
 
+        // if the user has requested any money, it cannot be deleted
+        ResultSet requestedRS = select("requested", "project='" + project + "' AND user='" + user + "'");
+        requestedRS.next();
+        float requested = requestedRS.getFloat("requested");
+        if (requested > 0) {
+            return new StatusMessage("user is in the midst of a transaction");
+        }
+
         users.remove(user);
         update("project", "users='" + toCSV(users) + "'", "project='" + project + "'");
+        delete("requested", "project='" + project + "' AND user='" + user + "'");
         log("user", "delete", "project: " + project + ", user: " + user);
         return new StatusMessage();
     }
@@ -772,12 +790,13 @@ class ListCommand extends Command {
                     return new StatusMessage("project does not have this user");
                 }
             }
-
+            
             ResultSet tenantRS = select("tenant", "name='" + projectTenant + "'");
+            ResultSet requestedRS = select("requested", "project='" + project + "'");
             tenantRS.next();
             JsonArrayBuilder tenantsBuilder = Json.createArrayBuilder()
                     .add(tenantBuilder(tenantRS, Json.createArrayBuilder()
-                            .add(projectBuilder(projectRS, users))));
+                            .add(projectBuilder(projectRS, usersBuilder(requestedRS)))));
 
             return new StatusMessage(Json.createObjectBuilder()
                     .add("list", tenantsBuilder));
@@ -808,7 +827,9 @@ class ListCommand extends Command {
                         continue;
                     }
                 }
-                projectBuilder.add(projectBuilder(projectRS, users));
+                ResultSet requestedRS = select("requested", "project='" + projectRS.getString("project")
+                        + "'");
+                projectBuilder.add(projectBuilder(projectRS, usersBuilder(requestedRS)));
             }
             tenantBuilder.add(tenantBuilder(tenantRS, projectBuilder));
         }
@@ -844,13 +865,17 @@ class ReservebudgetTransaction extends Command {
             return new StatusMessage("invalid estimate");
         }
 
-        float requested = rs.getFloat("requested");
+        float totalRequested = rs.getFloat("total_requested");
         float cost = rs.getFloat("rate") * estimate / 3600; // rate is in hours, estimate is in seconds
-        if (rs.getFloat("balance") + rs.getFloat("credit") - requested < cost) {
+        if (rs.getFloat("balance") + rs.getFloat("credit") - totalRequested < cost) {
             return new StatusMessage("insufficient project budget");
         }
 
-        update("project", "requested=" + (requested + cost), "project='" + project + "'");
+        String user = username();
+        ResultSet requestedRS = select("requested", "project='" + project + "' AND user='" + user + "'");
+        update("requested", "requested=" + requestedRS.getFloat("requested") + cost,
+                "project='" + project + "' AND user='" + user + "'");
+        update("project", "total_requested=" + (totalRequested + cost), "project='" + project + "'");
         return new StatusMessage();
     }
 }
@@ -861,14 +886,14 @@ class ChargeTransaction extends Command {
         this.c = c;
 
         String project = ns.getString("project");
-        ResultSet rs = select("project", "project='" + project + "'");
-        if (!rs.next()) {
+        ResultSet projectRS = select("project", "project='" + project + "'");
+        if (!projectRS.next()) {
             return new StatusMessage("project does not exist");
         }
-        if (rs.getBoolean("d")) {
+        if (projectRS.getBoolean("d")) {
             return new StatusMessage("project is disabled");
         }
-        if (!verify(rs)) {
+        if (!verify(projectRS)) {
             return insufficientPermissions;
         }
 
@@ -886,18 +911,21 @@ class ChargeTransaction extends Command {
         }
 
         String user = username();
-        ArrayList<String> users = fromCSV(rs.getString("users"));
-        if (!caseInsensitiveContains(users, user)) {
+        ArrayList<String> useprojectRS = fromCSV(projectRS.getString("useprojectRS"));
+        if (!caseInsensitiveContains(useprojectRS, user)) {
             return new StatusMessage("project does not contain this user");
         }
 
-        float rate = rs.getFloat("rate");
-        float balance = rs.getFloat("balance");
-        float credit = rs.getFloat("credit");
-        float currentRequested = rs.getFloat("requested");
+        float rate = projectRS.getFloat("rate");
+        float balance = projectRS.getFloat("balance");
+        float credit = projectRS.getFloat("credit");
 
+        ResultSet requestedRS = select("requested", "project='" + project + "' AND user='" + user + "'");
+        requestedRS.next();
+        
+        float currentRequested = requestedRS.getFloat("requested");
         if (estimate > currentRequested) {
-            return new StatusMessage("the amount requested by this project is less than the estimate");
+            return new StatusMessage("the amount requested by this user on this project is less than the estimate");
         }
 
         float cost = rate * jobtime / 3600;
@@ -914,12 +942,12 @@ class ChargeTransaction extends Command {
             newProjectCredit = 0;
         }
 
-        String tenant = rs.getString("tenant");
-        rs = select("tenant", "name='" + tenant + "'");
-        rs.next();
+        String tenant = projectRS.getString("tenant");
+        projectRS = select("tenant", "name='" + tenant + "'");
+        projectRS.next();
 
-        balance = rs.getFloat("balance");
-        credit = rs.getFloat("credit");
+        balance = projectRS.getFloat("balance");
+        credit = projectRS.getFloat("credit");
         float newTenantBal, newTenantCredit;
         if (cost <= balance) {
             newTenantBal = balance - cost;
@@ -933,10 +961,12 @@ class ChargeTransaction extends Command {
         }
 
         LocalDateTime startDate = toDateTime(start);
-        update("project", "requested=" + (currentRequested - requested) + ",balance=" + newProjectBal
-                        + ",credit=" + newProjectCredit, "project='" + project + "'");
+        update("project", "requested=" + (projectRS.getFloat("total_requested") - requested)
+                + ",balance=" + newProjectBal + ",credit=" + newProjectCredit, "project='" + project + "'");
         update("tenant", "balance=" + newTenantBal + ",credit=" + newTenantCredit,
                 "name='" + tenant + "'");
+        update("requested", "requested=" + (currentRequested - requested), "project='" + project
+                + "' AND user='" + user + "'");
         insert("transaction", "tenant,project,user,start,end,runtime,cost", "'" + tenant + "','"
                 + project + "','" + user + "','" + startDate.format(format) + "','"
                 + startDate.plusSeconds(jobtime).format(format) + "'," + jobtime + "," + cost);
@@ -1599,11 +1629,18 @@ public class dca {
         deleteTenantadminParser.addArgument("-m", "--mini").help("Mini-print (no newlines or tabs) output.")
                 .action(storeTrue());
 
+        StatusMessage failedCommand = new StatusMessage("invalid arguments");
         if (args.length == 0) {
-            parser.printHelp();
+            failedCommand.pprint();
             System.exit(1);
         }
-        return parser.parseArgsOrFail(args);
+        try {
+            return parser.parseArgs(args);
+        } catch(ArgumentParserException e) {
+            failedCommand.pprint();
+            System.exit(1);
+        }
+        return null;
     }
 
     private static Connection initSQL() {
