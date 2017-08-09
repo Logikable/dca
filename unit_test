@@ -1,3 +1,4 @@
+#!/usr/bin/python3.4
 from subprocess import PIPE, run
 import json, sys
 
@@ -6,7 +7,7 @@ def verify(subcommand, success):
 	command = ['./dca'].extend(subcommand.split(' '))
 	result = run(command, stdout=PIPE, stderr=PIPE, universal_newlines=True)
 	output = json.loads(result.stdout)
-	success_string = success ? 'success' : 'failed'
+	success_string = 'success' if success else 'failed'
 	if (output.status != success_string):
 		print('Incorrect Status: expected', success_string, 'received', output.status)
 		sys.exit(1)
