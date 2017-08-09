@@ -254,7 +254,7 @@ abstract class Command {
         return new ArrayList<>(Arrays.asList(s.split("\\s+,\\s+")));
     }
     String toCSV(ArrayList<String> list) {
-        return list.toString().replaceAll("[\\[.\\].\\s+]", "");
+        return list.toString().replaceAll("[\\[.\\]\\s+]", "");
     }
 
     /***** SQL *****/

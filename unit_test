@@ -3,13 +3,16 @@ from subprocess import PIPE, run
 import json, sys
 
 def verify(subcommand, success):
-    print('Executing', subcommand)
+    print('Executing dca', subcommand)
+
     command = ['./dca']
     command.extend(subcommand.split(' '))
-    print(command)
     result = run(command, stdout=PIPE, stderr=PIPE, universal_newlines=True)
+
     output = json.loads(result.stdout)
     success_string = 'success' if success else 'failed'
+    print(output)
+
     if (output.status != success_string):
         print('Incorrect Status: expected', success_string, 'received', output.status)
         sys.exit(1)
