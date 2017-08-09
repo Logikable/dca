@@ -1,3 +1,18 @@
-from subprocess import call
+from subprocess import PIPE, run
+import json, sys
 
-print(call(['./dca', 'list']))
+def verify(subcommand, success):
+	print('Executing', subcommand)
+	command = ['./dca'].extend(subcommand.split(' '))
+	result = run(command, stdout=PIPE, stderr=PIPE, universal_newlines=True)
+	output = json.loads(result.stdout)
+	success_string = success ? 'success' : 'failed'
+	if (output.status != success_string):
+		print('Incorrect Status: expected', success_string, 'received', output.status)
+		sys.exit(1)
+	print('Outputted Error:', output.error)
+
+verify('wipe', True)
+verify('setup', True)
+verify('tenant add -t t1', True)
+
