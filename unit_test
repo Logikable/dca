@@ -15,7 +15,7 @@ def verify(subcommand, success):
     if (output['status'] != success_string):
         print('Incorrect Status: expected', success_string, 'received', output.status)
         sys.exit(1)
-    print('Outputted Error:', output.error)
+    print('Outputted Error:', output['error'])
 
 verify('wipe', True)
 verify('setup', True)
