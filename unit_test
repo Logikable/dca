@@ -2,7 +2,7 @@
 from subprocess import PIPE, run
 import json, sys
 
-def verify(subcommand, success):
+def verify(subcommand, success=True):
     print('Executing dca', subcommand)
 
     command = ['./dca']
@@ -15,9 +15,15 @@ def verify(subcommand, success):
     if (output['status'] != success_string):
         print('Incorrect Status: expected', success_string, 'received', output.status)
         sys.exit(1)
-    print('Outputted Error:', output['error'])
+    if (output['status'] == 'error'):
+        print('Outputted Error:', output['error'])
 
-verify('wipe', True)
-verify('setup', True)
-verify('tenant add -t t1', True)
-
+verify('wipe')
+verify('setup')
+verify('tenant add -t t1')
+verify('tenant add -t t2 -c 10')
+verify('tenant add -t ^', False)
+verify('tenant add -t 123456789012345678901234567890123', False)
+verify('tenant add -t t1', False)
+verify('tenant add -t t100 -c a', False)
+verify('tenant add -t t100 -c -1', False)
