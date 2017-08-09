@@ -29,7 +29,7 @@ verify('tenant add -t t100 -c a', False)
 verify('tenant add -t t100 -c -1', False)
 
 verify('tenant add -t t3')
-verify('tenant disable -t t3')
+verify('tenant disable -t t3 -y')
 verify('tenant add -t t3', False)
 verify('tenant add -t t4')
 verify('tenant disable -t t4 -y')
