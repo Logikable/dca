@@ -11,9 +11,8 @@ def verify(subcommand, success):
 
     output = json.loads(result.stdout)
     success_string = 'success' if success else 'failed'
-    print(output)
 
-    if (output.status != success_string):
+    if (output['status'] != success_string):
         print('Incorrect Status: expected', success_string, 'received', output.status)
         sys.exit(1)
     print('Outputted Error:', output.error)
