@@ -4,7 +4,8 @@ import json, sys
 
 def verify(subcommand, success):
     print('Executing', subcommand)
-    command = ['./dca'].extend(subcommand.split(' '))
+    command = ['./dca']
+    command.extend(subcommand.split(' '))
     print(command)
     result = run(command, stdout=PIPE, stderr=PIPE, universal_newlines=True)
     output = json.loads(result.stdout)
