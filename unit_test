@@ -13,7 +13,7 @@ def verify(subcommand, success=True):
     success_string = 'success' if success else 'failed'
 
     if (output['status'] != success_string):
-        print('Incorrect Status: expected', success_string, 'received', output.status, 'error:', output['error'])
+        print('Incorrect Status: expected', success_string, 'received', output['status'], 'error:', output['error'])
         sys.exit(1)
     if (output['status'] == 'error'):
         print('Outputted Error:', output['error'])
@@ -85,8 +85,8 @@ verify('project movebudget --from p11 --to p21 --type p2p', False)
 verify('project movebudget --from t1 --to p11 --type t2p -b 100', False)
 verify('project movebudget --from t1 --to p11 --type t2p -c 10', False)
 
-verify('user add -p p1 -u u1')
-verify('user add -p p1 -u u1', False)
+verify('user add -p p11 -u u1')
+verify('user add -p p11 -u u1', False)
 verify('user add -p p100 -u u1', False)
 verify('user add -p p13 -u u1', False)
 verify('user add -p p11 -u ^', False)
@@ -124,5 +124,7 @@ verify('list -t t10 -p p11 -u u1')
 verify('list -t t1 -p p21 -u u1')
 verify('list -t t1 -p p11 -u u2')
 verify('list -t t2 -p p11 -u u1')
+
+
 
 print('Success!')
